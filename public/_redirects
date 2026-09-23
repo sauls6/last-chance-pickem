@@ -1,0 +1,3 @@
+# Cloudflare Pages SPA routing — redirect all paths to index.html
+# Without this, direct links like /leaderboard return 404
+/*    /index.html   200

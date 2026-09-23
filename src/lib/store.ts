@@ -119,8 +119,10 @@ export async function savePicksForWeek(
   if (supabase) {
     try {
       const rows = pickEntries.map((p) => ({
-        user_id: userId,
-        game_id: p.gameId,
+        user_id:            userId,
+        game_id:            p.gameId,
+        season:             '2026',
+        week:               week,
         selected_roster_id: p.selectedRosterId,
       }));
       const { error } = await supabase.from('picks').upsert(rows, { onConflict: 'user_id,game_id' });
