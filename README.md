@@ -108,3 +108,31 @@ The application works in local demo mode out of the box. To enable live cross-de
    VITE_SUPABASE_ANON_KEY=your-anon-key-here
    ```
 5. Deploy for free on **Vercel** or **Netlify**!
+
+---
+
+## ⚠️ Current Development State
+
+### Working Now (no Supabase needed)
+- ✅ Full UI: Picks, Leaderboard, Profile tabs with all interactions
+- ✅ Live Sleeper data (team names, avatars, matchups, records, points)
+- ✅ Correct `isLocked` state — matchups lock at real Thursday 8:15 PM ET kickoff time
+- ✅ Per-user profile stats (each of the 12 managers has distinct placeholder data)
+- ✅ Week navigation with season-accurate kickoff date per week
+- ✅ PIN auth with state reset on reopen + mobile numeric keyboard
+- ✅ Team name / avatar auto-sync from Sleeper on every page load
+- ✅ Local `localStorage` persistence for picks and tiebreaker
+
+### Requires Supabase to be Real
+- 🔲 Leaderboard standings computed from actual saved picks (currently placeholder records)
+- 🔲 Profile stats computed from actual picks vs. Sleeper winner outcomes
+- 🔲 League consensus split bar (currently deterministic simulated data)
+- 🔲 Cross-device / cross-browser pick sync (currently per-device localStorage)
+
+### Season Hardcoding
+The NFL season year `2026` and Week 1 Thursday date (`2026-09-11T00:15:00Z`) are hardcoded in:
+- `src/lib/sleeper.ts` → `getThursdayKickoff()`
+- `src/lib/store.ts` → Supabase tiebreaker upsert
+
+Update these values each NFL season.
+
