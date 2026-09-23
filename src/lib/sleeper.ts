@@ -7,7 +7,6 @@ export function getAvatarUrl(avatarId: string | null | undefined, seedName: stri
   if (avatarId && avatarId.trim().length > 0) {
     return `https://sleepercdn.com/avatars/thumbs/${avatarId}`;
   }
-  // Clean fallback SVG avatar with manager's initials
   const initials = seedName.slice(0, 2).toUpperCase();
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(initials)}&backgroundColor=1C1F26&textColor=F2F2E8`;
 }
@@ -40,6 +39,7 @@ export interface RawSleeperMatchup {
   custom_points?: number | null;
   starters?: string[];
   starters_points?: number[];
+  players_points?: Record<string, number>;
 }
 
 export interface SleeperState {
@@ -48,9 +48,9 @@ export interface SleeperState {
   season_type: string;
 }
 
-// In-memory cache to prevent spamming Sleeper
+// In-memory cache
 const cache: Record<string, { data: unknown; timestamp: number }> = {};
-const CACHE_TTL_MS = 60 * 1000; // 1 minute
+const CACHE_TTL_MS = 60 * 1000;
 
 async function fetchWithCache<T>(endpoint: string): Promise<T> {
   const now = Date.now();
@@ -59,7 +59,7 @@ async function fetchWithCache<T>(endpoint: string): Promise<T> {
   }
   const res = await fetch(`${BASE_API_URL}/${endpoint}`);
   if (!res.ok) {
-    throw new Error(`Sleeper API error: ${res.statusText}`);
+    throw new Error(`Sleeper API error ${res.status}: ${res.statusText}`);
   }
   const data = await res.json();
   cache[endpoint] = { data, timestamp: now };
@@ -77,9 +77,7 @@ export async function fetchLeagueUsers(): Promise<LeagueUser[]> {
   ]);
 
   const rosterByOwner = new Map<string, RawSleeperRoster>();
-  rosters.forEach((r) => {
-    rosterByOwner.set(r.owner_id, r);
-  });
+  rosters.forEach((r) => rosterByOwner.set(r.owner_id, r));
 
   return users.map((u) => {
     const roster = rosterByOwner.get(u.user_id);
@@ -94,9 +92,23 @@ export async function fetchLeagueUsers(): Promise<LeagueUser[]> {
   });
 }
 
+/**
+ * Computes the upcoming Thursday's kickoff time (8:15 PM ET = 00:15 UTC next day).
+ * If today IS Thursday after the lock time, returns this Thursday.
+ * Otherwise returns the next upcoming Thursday.
+ */
+function getThursdayKickoff(week: number): Date {
+  // Approximate: 2026 NFL Week 1 started Sep 10, 2026
+  // Each week advances 7 days. Week 1 Thursday = Sep 10 2026 @ 20:15 ET (00:15 UTC Sep 11)
+  const WEEK1_THURSDAY_UTC = new Date('2026-09-11T00:15:00Z');
+  const d = new Date(WEEK1_THURSDAY_UTC.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
+  return d;
+}
+
 export async function fetchWeeklyMatchups(
   week: number,
-  currentNflWeek: number
+  currentNflWeek: number,
+  season = '2026'
 ): Promise<WeeklyMatchup[]> {
   const [rawMatchups, users, rosters] = await Promise.all([
     fetchWithCache<RawSleeperMatchup[]>(`league/${SLEEPER_LEAGUE_ID}/matchups/${week}`),
@@ -117,7 +129,6 @@ export async function fetchWeeklyMatchups(
     const teamName = owner?.metadata?.team_name || `${displayName}'s Team`;
     const avatarUrl = getAvatarUrl(owner?.avatar || owner?.metadata?.avatar, displayName);
     const record = roster ? `${roster.settings.wins}-${roster.settings.losses}` : '0-0';
-
     return {
       rosterId: m.roster_id,
       userId: owner?.user_id || `user_${m.roster_id}`,
@@ -132,18 +143,15 @@ export async function fetchWeeklyMatchups(
   // Group matchups by matchup_id
   const grouped = new Map<number, RawSleeperMatchup[]>();
   rawMatchups.forEach((m) => {
-    if (!grouped.has(m.matchup_id)) {
-      grouped.set(m.matchup_id, []);
-    }
+    if (!grouped.has(m.matchup_id)) grouped.set(m.matchup_id, []);
     grouped.get(m.matchup_id)!.push(m);
   });
 
-  const matchups: WeeklyMatchup[] = [];
+  const kickoffAt = getThursdayKickoff(week);
+  const now = Date.now();
+  const isAfterKickoff = now >= kickoffAt.getTime();
 
-  // Default Thursday kickoff timestamp for 2026 Season Week 3 (Thursday 8:15 PM ET)
-  // Can also calculate dynamically
-  const kickoffDate = new Date();
-  kickoffDate.setHours(20, 15, 0, 0);
+  const matchups: WeeklyMatchup[] = [];
 
   grouped.forEach((pair, matchupId) => {
     if (pair.length < 2) return;
@@ -165,18 +173,40 @@ export async function fetchWeeklyMatchups(
       }
     }
 
+    // A matchup is locked once the Thursday kickoff has passed (for the current week)
+    // or it's a completed week
+    const isLocked = week < currentNflWeek || (week === currentNflWeek && isAfterKickoff);
+
     matchups.push({
-      id: `2026_w${week < 10 ? '0' + week : week}_m${matchupId < 10 ? '0' + matchupId : matchupId}`,
+      id: `${season}_w${String(week).padStart(2, '0')}_m${String(matchupId).padStart(2, '0')}`,
       week,
       matchupId,
       teamA,
       teamB,
       status,
       winnerRosterId,
-      kickoffAt: kickoffDate.toISOString(),
-      isLocked: week < currentNflWeek,
+      kickoffAt: kickoffAt.toISOString(),
+      isLocked,
     });
   });
 
   return matchups.sort((a, b) => a.matchupId - b.matchupId);
+}
+
+/**
+ * Gets the highest player score across all rosters for a given week.
+ * Used for the tiebreaker resolution.
+ */
+export async function fetchWeekHighestPlayerScore(week: number): Promise<number> {
+  const rawMatchups = await fetchWithCache<RawSleeperMatchup[]>(
+    `league/${SLEEPER_LEAGUE_ID}/matchups/${week}`
+  );
+  let max = 0;
+  rawMatchups.forEach((m) => {
+    const pp = m.players_points || {};
+    Object.values(pp).forEach((val) => {
+      if (typeof val === 'number' && val > max) max = val;
+    });
+  });
+  return max;
 }

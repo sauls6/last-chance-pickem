@@ -21,14 +21,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       <div className="relative p-6 rounded-3xl bg-[#0E1013] border border-[#1C1F26] text-center mb-6 overflow-hidden">
         <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-48 h-48 bg-[#6A85FA]/15 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Big Avatar */}
         <div className="relative w-20 h-20 mx-auto mb-3 rounded-full overflow-hidden border-2 border-[#6A85FA] shadow-[0_0_20px_rgba(106,133,250,0.4)] bg-[#050505]">
           <img
             src={user.avatarUrl}
             alt={user.displayName}
             className="w-full h-full object-cover"
             onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${user.displayName}`;
+              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.displayName)}&backgroundColor=1C1F26&textColor=F2F2E8`;
             }}
           />
         </div>
@@ -105,46 +104,54 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             {stats.homerRate.pickedOwn} / {stats.homerRate.totalWeeks}
           </span>
           <span className="block text-[11px] text-[#64748B] mt-0.5">
-            {stats.homerRate.winRatePct}% own win rate
+            {stats.homerRate.winRatePct}% win when picking self
           </span>
         </div>
       </div>
 
-      {/* Weekly History Recap */}
+      {/* Weekly History — rendered from data, not hardcoded */}
       <div className="p-5 rounded-3xl bg-[#0E1013] border border-[#1C1F26]">
         <h3 className="font-display text-xl text-[#F2F2E8] tracking-wide mb-4">
           Past Week Results
         </h3>
 
-        <div className="space-y-3">
-          <div className="p-3.5 rounded-xl bg-[#111317] border border-[#1C1F26] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-display text-xl text-[#9AA0A6]">W1</span>
-              <div>
-                <h5 className="font-bold text-sm text-[#F2F2E8]">Week 1 Slate</h5>
-                <p className="text-xs text-[#9AA0A6]">2 correct / 4 missed</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-display text-xl text-[#9AA0A6]">2-4</span>
-              <span className="text-xs text-rose-400 font-bold">33%</span>
-            </div>
+        {stats.weeklyHistory.length === 0 ? (
+          <p className="text-sm text-[#9AA0A6] text-center py-4">No completed weeks yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {stats.weeklyHistory.map((wh) => {
+              const missed = wh.total - wh.correct;
+              const pct = wh.total > 0 ? Math.round((wh.correct / wh.total) * 100) : 0;
+              const isGood = pct >= 50;
+              return (
+                <div
+                  key={wh.week}
+                  className="p-3.5 rounded-xl bg-[#111317] border border-[#1C1F26] flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={`font-display text-xl ${isGood ? 'text-[#6A85FA]' : 'text-[#9AA0A6]'}`}>
+                      W{wh.week}
+                    </span>
+                    <div>
+                      <h5 className="font-bold text-sm text-[#F2F2E8]">Week {wh.week} Slate</h5>
+                      <p className="text-xs text-[#9AA0A6]">
+                        {wh.correct} correct / {missed} missed
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-display text-xl ${isGood ? 'text-[#6A85FA]' : 'text-[#9AA0A6]'}`}>
+                      {wh.correct}-{missed}
+                    </span>
+                    <span className={`text-xs font-bold ${isGood ? 'text-[#6A85FA]' : 'text-rose-400'}`}>
+                      {pct}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-
-          <div className="p-3.5 rounded-xl bg-[#111317] border border-[#1C1F26] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-display text-xl text-[#6A85FA]">W2</span>
-              <div>
-                <h5 className="font-bold text-sm text-[#F2F2E8]">Week 2 Slate</h5>
-                <p className="text-xs text-[#9AA0A6]">3 correct / 3 missed</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-display text-xl text-[#6A85FA]">3-3</span>
-              <span className="text-xs text-[#6A85FA] font-bold">50%</span>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

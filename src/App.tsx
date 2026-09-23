@@ -28,6 +28,7 @@ export function App() {
   const [loadingMatchups, setLoadingMatchups] = useState<boolean>(true);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
+  const [usersLoading, setUsersLoading] = useState<boolean>(true);
 
   // Initialize Auth & League Users
   useEffect(() => {
@@ -49,51 +50,56 @@ export function App() {
         const leagueUsers = await fetchLeagueUsers();
         setUsers(leagueUsers);
 
-        // Keep current user session in sync with fresh Sleeper team name & avatar
+        // Auto-sync: if team name or avatar changed on Sleeper, update session
         const saved = getSavedAuthUser();
         if (saved) {
           const fresh = leagueUsers.find((u) => u.userId === saved.userId);
-          if (fresh && (fresh.teamName !== saved.teamName || fresh.avatarUrl !== saved.avatarUrl || fresh.displayName !== saved.displayName)) {
+          if (
+            fresh &&
+            (fresh.teamName !== saved.teamName ||
+              fresh.avatarUrl !== saved.avatarUrl ||
+              fresh.displayName !== saved.displayName)
+          ) {
             setCurrentUser(fresh);
+            // Re-persist without changing PIN
             localStorage.setItem('last_chance_pickem_active_user', JSON.stringify(fresh));
           }
         }
       } catch (e) {
         console.error('Could not fetch league users', e);
+      } finally {
+        setUsersLoading(false);
       }
     }
 
     initLeague();
   }, []);
 
-  // Fetch Matchups when selectedWeek changes
+  // Fetch Matchups when selectedWeek or currentNflWeek changes
   useEffect(() => {
     let isCancelled = false;
+
     async function loadMatchups() {
       setLoadingMatchups(true);
       try {
         const data = await fetchWeeklyMatchups(selectedWeek, currentNflWeek);
-        if (!isCancelled) {
-          setMatchups(data);
-        }
+        if (!isCancelled) setMatchups(data);
       } catch (e) {
         console.error('Error fetching weekly matchups', e);
+        if (!isCancelled) setMatchups([]);
       } finally {
-        if (!isCancelled) {
-          setLoadingMatchups(false);
-        }
+        if (!isCancelled) setLoadingMatchups(false);
       }
     }
 
     loadMatchups();
-    return () => {
-      isCancelled = true;
-    };
+    return () => { isCancelled = true; };
   }, [selectedWeek, currentNflWeek]);
 
   const handleLogout = () => {
     clearAuthUser();
     setCurrentUser(null);
+    setViewingUserId(null);
     setActiveTab('picks');
   };
 
@@ -102,23 +108,21 @@ export function App() {
     currentUser?.userId
   );
 
-  // Selected Profile for Profile Tab
+  // Profile target: explicit viewingUserId → currentUser → first user in list
+  // If users haven't loaded yet, don't show blank profile
   const targetUser =
     users.find((u) => u.userId === viewingUserId) ||
     currentUser ||
     (users.length > 0 ? users[0] : null);
 
   const targetRank = targetUser
-    ? leaderboardEntries.find((e) => e.userId === targetUser.userId)?.rank || 1
+    ? (leaderboardEntries.find((e) => e.userId === targetUser.userId)?.rank ?? 1)
     : 1;
 
-  const targetStats = targetUser
-    ? computeProfileStats(targetUser, targetRank)
-    : null;
+  const targetStats = targetUser ? computeProfileStats(targetUser, targetRank) : null;
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#F2F2E8] flex flex-col selection:bg-[#6A85FA] selection:text-white">
-      {/* Top Bar */}
       <Header
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthOpen(true)}
@@ -130,7 +134,6 @@ export function App() {
         }}
       />
 
-      {/* Main Tab Views */}
       <main className="flex-1">
         {activeTab === 'picks' && (
           <PicksView
@@ -148,6 +151,7 @@ export function App() {
           <LeaderboardView
             entries={leaderboardEntries}
             currentUser={currentUser}
+            loading={usersLoading}
             onSelectUser={(uid) => {
               setViewingUserId(uid);
               setActiveTab('profile');
@@ -155,17 +159,34 @@ export function App() {
           />
         )}
 
-        {activeTab === 'profile' && targetUser && targetStats && (
-          <ProfileView
-            user={targetUser}
-            stats={targetStats}
-            isOwnProfile={Boolean(currentUser && currentUser.userId === targetUser.userId)}
-            onLogout={handleLogout}
-          />
+        {activeTab === 'profile' && (
+          <>
+            {usersLoading ? (
+              <div className="flex items-center justify-center h-60 text-[#9AA0A6] text-sm">
+                Loading…
+              </div>
+            ) : targetUser && targetStats ? (
+              <ProfileView
+                user={targetUser}
+                stats={targetStats}
+                isOwnProfile={Boolean(currentUser && currentUser.userId === targetUser.userId)}
+                onLogout={handleLogout}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-60 gap-4 text-[#9AA0A6] text-sm">
+                <p>Claim your team to see your profile.</p>
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-[#6A85FA] text-white text-xs font-bold cursor-pointer"
+                >
+                  Claim Team
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 
-      {/* Floating Spring Pill Nav */}
       <BlobNav
         activeTab={activeTab}
         onTabChange={(tab) => {
@@ -176,14 +197,15 @@ export function App() {
         }}
       />
 
-      {/* Claim Team / PIN Auth Modal */}
       <PinAuthModal
         users={users}
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         onSuccess={(user) => {
+          // saveAuthUser is called inside PinAuthModal; just sync state here
           setCurrentUser(user);
           setViewingUserId(user.userId);
+          setIsAuthOpen(false);
         }}
       />
     </div>

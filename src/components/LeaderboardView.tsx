@@ -5,12 +5,14 @@ import { Crown, Flame, Snowflake } from 'lucide-react';
 interface LeaderboardViewProps {
   entries: LeaderboardEntry[];
   currentUser: LeagueUser | null;
+  loading?: boolean;
   onSelectUser: (userId: string) => void;
 }
 
 export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
   entries,
   currentUser,
+  loading = false,
   onSelectUser,
 }) => {
   const [filterMode, setFilterMode] = useState<'season' | 'weekly'>('season');
@@ -99,7 +101,21 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
       ) : (
         /* Season Table */
         <div className="bg-[#0E1013] border border-[#1C1F26] rounded-2xl overflow-hidden divide-y divide-[#1C1F26]">
-          {entries.map((r) => {
+          {loading
+            ? Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="grid grid-cols-[36px_1fr_auto] gap-3 items-center p-3">
+                  <div className="w-8 h-6 bg-[#1C1F26] rounded animate-pulse" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-[#1C1F26] animate-pulse" />
+                    <div className="space-y-1.5">
+                      <div className="w-24 h-3 bg-[#1C1F26] rounded animate-pulse" />
+                      <div className="w-16 h-2.5 bg-[#1C1F26] rounded animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="w-14 h-6 bg-[#1C1F26] rounded animate-pulse" />
+                </div>
+              ))
+            : entries.map((r) => {
             const isUser = currentUser && r.userId === currentUser.userId;
             const isTop3 = r.rank <= 3;
             const isFire = r.streak.includes('🔥');
