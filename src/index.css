@@ -46,7 +46,39 @@ body {
   box-shadow: var(--glow-subtle) !important;
 }
 
-/* Custom scrollbar */
+/* ── Global dark scrollbar ─────────────────────────────────
+   Webkit (Chrome, Edge, Safari): custom dark scrollbar
+   Firefox: scrollbar-width + scrollbar-color                */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2A2F3D #0E1013;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0E1013;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2A2F3D;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--blue);
+}
+
+::-webkit-scrollbar-corner {
+  background: #0E1013;
+}
+
+/* Hide scrollbar entirely — used on WeekRail, modals, etc. */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
