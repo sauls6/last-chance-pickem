@@ -57,6 +57,26 @@ async function runSync() {
   });
   console.log('--------------------------------------------------');
 
+  // 4. Calculate Tiebreaker (Highest Scoring Player across all rosters)
+  let maxPlayerPts = 0;
+  let maxPlayerRosterId: number | null = null;
+  rawMatchups.forEach((m) => {
+    const pp = m.players_points || {};
+    Object.values(pp).forEach((val) => {
+      const num = Number(val);
+      if (num > maxPlayerPts) {
+        maxPlayerPts = num;
+        maxPlayerRosterId = m.roster_id;
+      }
+    });
+  });
+
+  const topOwner = maxPlayerRosterId ? userMap.get(rosterMap.get(maxPlayerRosterId)?.owner_id) : null;
+  console.log(`\n🎯 WEEK ${state.week} TIEBREAKER (Highest-Scoring Player):`);
+  console.log(`Top Score: ${maxPlayerPts > 0 ? maxPlayerPts.toFixed(2) + ' pts' : 'Pending kickoff (Games not yet played)'}`);
+  if (topOwner) console.log(`Rostered by: ${topOwner.metadata?.team_name || topOwner.display_name}`);
+
+
   // 4. Optional Supabase Sync if env is set
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;

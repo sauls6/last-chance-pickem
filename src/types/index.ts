@@ -44,8 +44,9 @@ export interface UserPick {
 
 export interface WeeklyTiebreaker {
   week: number;
-  predictedPoints: number;
-  actualPoints?: number;
+  predictedHighestPlayerPoints: number;
+  actualHighestPlayerPoints?: number;
+  highestPlayerName?: string;
 }
 
 export interface GameSplit {

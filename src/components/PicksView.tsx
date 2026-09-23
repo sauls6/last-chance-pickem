@@ -197,22 +197,27 @@ export const PicksView: React.FC<PicksViewProps> = ({
       {/* Tiebreaker Input Card */}
       {isWeekOpen && matchups.length > 0 && (
         <div className="mt-6 p-4 rounded-2xl bg-[#0E1013] border border-[#1C1F26]">
-          <h3 className="font-display text-lg text-[#F2F2E8] tracking-wide mb-1">
-            Weekly Tiebreaker
-          </h3>
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-display text-lg text-[#F2F2E8] tracking-wide">
+              Weekly Tiebreaker: Player Ceiling
+            </h3>
+            <span className="text-[10px] font-bold text-[#6A85FA] uppercase tracking-wider bg-[#6A85FA]/10 px-2 py-0.5 rounded-full border border-[#6A85FA]/30">
+              League High
+            </span>
+          </div>
           <p className="text-xs text-[#9AA0A6] mb-3">
-            Guess the total fantasy points scored across all 12 teams in the league this week.
+            Guess the fantasy points scored by the single highest-scoring player across the league this week (starters or bench).
           </p>
           <div className="flex items-center gap-3">
             <input
               type="number"
-              placeholder="e.g. 1420.5"
+              placeholder="e.g. 38.5"
               step="0.1"
               value={tiebreaker}
               onChange={(e) => setTiebreakerState(e.target.value)}
               className="flex-1 bg-[#151820] border border-[#1C1F26] focus:border-[#6A85FA] rounded-xl px-3.5 py-2 text-sm text-[#F2F2E8] outline-none font-mono"
             />
-            <span className="text-xs font-semibold text-[#9AA0A6]">Total Pts</span>
+            <span className="text-xs font-semibold text-[#9AA0A6]">Top Pts</span>
           </div>
         </div>
       )}

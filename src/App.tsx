@@ -48,6 +48,16 @@ export function App() {
       try {
         const leagueUsers = await fetchLeagueUsers();
         setUsers(leagueUsers);
+
+        // Keep current user session in sync with fresh Sleeper team name & avatar
+        const saved = getSavedAuthUser();
+        if (saved) {
+          const fresh = leagueUsers.find((u) => u.userId === saved.userId);
+          if (fresh && (fresh.teamName !== saved.teamName || fresh.avatarUrl !== saved.avatarUrl || fresh.displayName !== saved.displayName)) {
+            setCurrentUser(fresh);
+            localStorage.setItem('last_chance_pickem_active_user', JSON.stringify(fresh));
+          }
+        }
       } catch (e) {
         console.error('Could not fetch league users', e);
       }
