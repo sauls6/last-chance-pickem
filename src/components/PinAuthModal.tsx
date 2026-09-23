@@ -145,10 +145,10 @@ export const PinAuthModal: React.FC<PinAuthModalProps> = ({
               4-Digit PIN
             </label>
             <input
-              type="password"
+              type="text"
               inputMode="numeric"
               maxLength={4}
-              placeholder="••••"
+              placeholder="0000"
               value={pin}
               onChange={(e) => {
                 setPin(e.target.value.replace(/\D/g, '').slice(0, 4));

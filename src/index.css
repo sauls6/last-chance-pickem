@@ -87,6 +87,17 @@ body {
   scrollbar-width: none;
 }
 
+/* Remove up/down spin buttons on number inputs (tiebreaker, etc.) */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Anton typography helper */
 .font-display {
   font-family: 'Anton', Impact, sans-serif;

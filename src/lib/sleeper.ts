@@ -29,6 +29,8 @@ export interface RawSleeperRoster {
     losses: number;
     fpts?: number;
     fpts_decimal?: number;
+    ppts?: number;
+    ppts_decimal?: number;
   };
 }
 
@@ -122,6 +124,8 @@ export async function fetchWeeklyMatchups(
   const rosterMap = new Map<number, RawSleeperRoster>();
   rosters.forEach((r) => rosterMap.set(r.roster_id, r));
 
+  const completedWeeks = Math.max(1, currentNflWeek - 1);
+
   const buildTeamInfo = (m: RawSleeperMatchup): FantasyTeamInfo => {
     const roster = rosterMap.get(m.roster_id);
     const owner = roster ? userMap.get(roster.owner_id) : undefined;
@@ -129,6 +133,13 @@ export async function fetchWeeklyMatchups(
     const teamName = owner?.metadata?.team_name || `${displayName}'s Team`;
     const avatarUrl = getAvatarUrl(owner?.avatar || owner?.metadata?.avatar, displayName);
     const record = roster ? `${roster.settings.wins}-${roster.settings.losses}` : '0-0';
+
+    // Season analytics derived from roster settings (no extra API calls)
+    const fpts = (roster?.settings.fpts ?? 0) + (roster?.settings.fpts_decimal ?? 0) / 100;
+    const ppts = (roster?.settings.ppts ?? 0) + (roster?.settings.ppts_decimal ?? 0) / 100;
+    const avgPoints = Math.round((fpts / completedWeeks) * 100) / 100;
+    const startSitAccuracy = ppts > 0 ? Math.round((fpts / ppts) * 1000) / 10 : 100;
+
     return {
       rosterId: m.roster_id,
       userId: owner?.user_id || `user_${m.roster_id}`,
@@ -137,6 +148,9 @@ export async function fetchWeeklyMatchups(
       avatarUrl,
       record,
       points: m.points || 0,
+      projectedPoints: avgPoints, // best pre-game estimate = season avg
+      avgPoints,
+      startSitAccuracy,
     };
   };
 
@@ -173,9 +187,21 @@ export async function fetchWeeklyMatchups(
       }
     }
 
-    // A matchup is locked once the Thursday kickoff has passed (for the current week)
-    // or it's a completed week
+    // Locked once Thursday kickoff has passed or it's a past week
     const isLocked = week < currentNflWeek || (week === currentNflWeek && isAfterKickoff);
+
+    // Win probability via logistic function on projected spread
+    // σ = ~32 pts (typical weekly scoring std dev in PPR leagues)
+    const projA = teamA.projectedPoints ?? teamA.avgPoints ?? 100;
+    const projB = teamB.projectedPoints ?? teamB.avgPoints ?? 100;
+    const diff = projA - projB;
+    const winProbA = Math.min(95, Math.max(5, Math.round(100 / (1 + Math.pow(10, -diff / 32)))));
+    const winProbB = 100 - winProbA;
+
+    // Projected spread label: show the favorite with their margin
+    const spread = Math.abs(projA - projB).toFixed(1);
+    const favoriteName = projA >= projB ? teamA.displayName : teamB.displayName;
+    const projectedSpread = `${favoriteName} -${spread}`;
 
     matchups.push({
       id: `${season}_w${String(week).padStart(2, '0')}_m${String(matchupId).padStart(2, '0')}`,
@@ -187,6 +213,9 @@ export async function fetchWeeklyMatchups(
       winnerRosterId,
       kickoffAt: kickoffAt.toISOString(),
       isLocked,
+      winProbabilityA: winProbA,
+      winProbabilityB: winProbB,
+      projectedSpread,
     });
   });
 

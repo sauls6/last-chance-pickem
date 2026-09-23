@@ -21,6 +21,8 @@ export interface FantasyTeamInfo {
   record: string;
   points: number;
   projectedPoints?: number;
+  avgPoints?: number;         // Season average FPTS per completed week
+  startSitAccuracy?: number;  // fpts / ppts * 100
 }
 
 export interface WeeklyMatchup {
@@ -33,6 +35,9 @@ export interface WeeklyMatchup {
   winnerRosterId: number | null;
   kickoffAt: string; // ISO string for Thursday 8:15 PM ET
   isLocked: boolean;
+  winProbabilityA?: number; // 0–100
+  winProbabilityB?: number; // 0–100
+  projectedSpread?: string; // e.g. "ene efe ele -18.2"
 }
 
 export interface UserPick {
