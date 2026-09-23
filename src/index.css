@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  --font-anton: 'Anton', Impact, sans-serif;
+  --font-sans: 'Barlow', system-ui, -apple-system, sans-serif;
+  --color-canvas: #050505;
+  --color-card: #0E1013;
+  --color-card-hover: #15181E;
+  --color-border: #1C1F26;
+  --color-ink: #F2F2E8;
+  --color-steel: #9AA0A6;
+  --color-accent: #6A85FA;
+  --color-danger: #E5484D;
+}
+
+:root {
+  --bg: #050505;
+  --card: #0E1013;
+  --line: #1C1F26;
+  --ink: #F2F2E8;
+  --steel: #9AA0A6;
+  --blue: #6A85FA;
+  --red: #E5484D;
+  --glow: 0 0 0 1px var(--blue), 0 0 26px rgba(106, 133, 250, 0.55), inset 0 0 18px rgba(106, 133, 250, 0.18);
+  --glow-subtle: 0 0 0 1px rgba(106, 133, 250, 0.4), 0 0 16px rgba(106, 133, 250, 0.25);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: 'Barlow', system-ui, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom glow utility */
+.glow-card {
+  box-shadow: var(--glow) !important;
+  border-color: var(--blue) !important;
+}
+
+.glow-subtle {
+  box-shadow: var(--glow-subtle) !important;
+}
+
+/* Custom scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Anton typography helper */
+.font-display {
+  font-family: 'Anton', Impact, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
