@@ -1,0 +1,38 @@
+name: Sleeper Matchups & Scoring Sync
+
+on:
+  schedule:
+    # Tuesday 10:00 UTC (6:00 AM ET) — Scores week picks and finalizes standings after MNF
+    - cron: '0 10 * * 2'
+    # Friday 04:00 UTC (12:00 AM ET) — Live scores after Thursday Night Football
+    - cron: '0 4 * * 5'
+    # Monday 04:00 UTC (12:00 AM ET) — Live scores after Sunday Night Football
+    - cron: '0 4 * * 1'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab anytime
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Sleeper Sync
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: pnpm sync

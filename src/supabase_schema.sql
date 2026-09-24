@@ -14,6 +14,7 @@ create table if not exists public.profiles (
   display_name    text not null,
   team_name       text,
   avatar_url      text,
+  pin             text,
   created_at      timestamptz default now()
 );
 

@@ -71,7 +71,7 @@ export interface LeaderboardEntry {
   totalCorrect: number;
   totalPicks: number;
   winPct: number;
-  streak: string; // e.g. "🔥 3W" or "❄️ 1L"
+  streak?: string; // deprecated: replaced by weeklyWins
   weeklyWins: number;
   isCurrentUser?: boolean;
 }

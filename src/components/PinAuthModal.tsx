@@ -19,6 +19,7 @@ export const PinAuthModal: React.FC<PinAuthModalProps> = ({
   const [selectedUser, setSelectedUser] = useState<LeagueUser | null>(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Reset form state whenever the modal opens
   useEffect(() => {
@@ -26,12 +27,13 @@ export const PinAuthModal: React.FC<PinAuthModalProps> = ({
       setSelectedUser(null);
       setPin('');
       setError(null);
+      setIsVerifying(false);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) {
       setError('Please select your fantasy team');
@@ -41,13 +43,25 @@ export const PinAuthModal: React.FC<PinAuthModalProps> = ({
       setError('PIN must be exactly 4 digits');
       return;
     }
-    if (!verifyUserPin(selectedUser.userId, pin)) {
-      setError('Wrong PIN — try again');
-      return;
+
+    setIsVerifying(true);
+    setError(null);
+
+    try {
+      const isValid = await verifyUserPin(selectedUser.userId, pin);
+      if (!isValid) {
+        setError('Wrong PIN for this team — try again');
+        setIsVerifying(false);
+        return;
+      }
+      await saveAuthUser(selectedUser, pin);
+      onSuccess(selectedUser);
+      onClose();
+    } catch {
+      setError('Verification failed — check connection');
+    } finally {
+      setIsVerifying(false);
     }
-    saveAuthUser(selectedUser, pin);
-    onSuccess(selectedUser);
-    onClose();
   };
 
   return (
@@ -163,10 +177,10 @@ export const PinAuthModal: React.FC<PinAuthModalProps> = ({
 
           <button
             type="submit"
-            disabled={users.length === 0}
+            disabled={users.length === 0 || isVerifying}
             className="w-full py-3 rounded-xl bg-[#6A85FA] hover:bg-[#5872ea] text-white font-bold text-sm tracking-wide shadow-[0_0_20px_rgba(106,133,250,0.4)] transition-all cursor-pointer disabled:opacity-50"
           >
-            Confirm & Sign In
+            {isVerifying ? 'Verifying PIN…' : 'Confirm & Sign In'}
           </button>
         </form>
       </div>

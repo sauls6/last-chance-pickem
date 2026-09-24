@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import type { LeaderboardEntry, LeagueUser } from '../types';
+import type { WeeklyChampion } from '../lib/store';
 import { Crown, Trophy } from 'lucide-react';
 
 interface LeaderboardViewProps {
   entries: LeaderboardEntry[];
   currentUser: LeagueUser | null;
   loading?: boolean;
+  weeklyChampions?: WeeklyChampion[];
   onSelectUser: (userId: string) => void;
 }
 
@@ -13,6 +15,7 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
   entries,
   currentUser,
   loading = false,
+  weeklyChampions = [],
   onSelectUser,
 }) => {
   const [filterMode, setFilterMode] = useState<'season' | 'weekly'>('season');
@@ -56,47 +59,52 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
       {filterMode === 'weekly' ? (
         /* Weekly Winners Cards */
         <div className="space-y-3">
-          <div className="p-4 rounded-2xl bg-[#0E1013] border border-[#1C1F26] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#6A85FA]/10 border border-[#6A85FA]/40 flex items-center justify-center text-[#6A85FA]">
-                <Crown className="w-5 h-5" />
+          {weeklyChampions.length === 0 ? (
+            <div className="p-8 rounded-3xl bg-[#0E1013] border border-[#1C1F26] text-center">
+              <div className="w-12 h-12 rounded-full bg-[#161922] border border-[#242A38] flex items-center justify-center mx-auto mb-3 text-xl">
+                👑
               </div>
-              <div>
-                <span className="text-[11px] font-bold text-[#6A85FA] uppercase tracking-wider">
-                  Week 1 Champion
-                </span>
-                <h4 className="font-bold text-sm text-[#F2F2E8]">
-                  Diegocr21 (The Maye-Trix)
-                </h4>
-                <p className="text-xs text-[#9AA0A6]">5 of 6 correct picks</p>
+              <h4 className="font-display text-lg text-[#F2F2E8] mb-1">
+                No Weekly Champions Yet
+              </h4>
+              <p className="text-xs text-[#9AA0A6] max-w-xs mx-auto leading-relaxed">
+                The Week 3 champion will be crowned on Tuesday morning once Monday Night Football finishes!
+              </p>
+            </div>
+          ) : (
+            weeklyChampions.map((c) => (
+              <div
+                key={c.week}
+                onClick={() => onSelectUser(c.winnerUser.userId)}
+                className="p-4 rounded-2xl bg-[#0E1013] border border-[#1C1F26] hover:border-[#6A85FA]/40 flex items-center justify-between cursor-pointer transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#6A85FA]/10 border border-[#6A85FA]/40 flex items-center justify-center text-[#6A85FA]">
+                    <Crown className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold text-[#6A85FA] uppercase tracking-wider">
+                      Week {c.week} Champion
+                    </span>
+                    <h4 className="font-bold text-sm text-[#F2F2E8]">
+                      {c.winnerUser.displayName} ({c.winnerUser.teamName})
+                    </h4>
+                    <p className="text-xs text-[#9AA0A6]">
+                      {c.correct} of {c.total} correct picks
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="font-display text-2xl text-[#6A85FA]">
+                    {c.correct}-{c.total - c.correct}
+                  </span>
+                  <span className="block text-[10px] text-[#9AA0A6]">
+                    {c.winPct.toFixed(1)}%
+                  </span>
+                </div>
               </div>
-            </div>
-            <div className="text-right">
-              <span className="font-display text-2xl text-[#6A85FA]">5-1</span>
-              <span className="block text-[10px] text-[#9AA0A6]">83.3%</span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-[#0E1013] border border-[#1C1F26] flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#6A85FA]/10 border border-[#6A85FA]/40 flex items-center justify-center text-[#6A85FA]">
-                <Crown className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] font-bold text-[#6A85FA] uppercase tracking-wider">
-                  Week 2 Champion
-                </span>
-                <h4 className="font-bold text-sm text-[#F2F2E8]">
-                  lsemilio05 (CEEDEE’S NUTS)
-                </h4>
-                <p className="text-xs text-[#9AA0A6]">5 of 6 correct picks</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="font-display text-2xl text-[#6A85FA]">5-1</span>
-              <span className="block text-[10px] text-[#9AA0A6]">83.3%</span>
-            </div>
-          </div>
+            ))
+          )}
         </div>
       ) : (
         /* Season Table */
