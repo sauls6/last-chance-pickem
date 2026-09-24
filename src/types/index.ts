@@ -82,23 +82,38 @@ export interface UserProfileStats {
   totalCorrect: number;
   totalPicks: number;
   winPct: number;
-  bestWeek: string;
-  currentStreak: string;
-  homerRate: {
-    pickedOwn: number;
-    totalWeeks: number;
-    winRatePct: number;
+  bestWeek: string;           // e.g. "5-1"
+
+  upsetsCalledCorrectly: number;
+
+  mostPickedTeam: {
+    teamName: string;
+    count: number;
+    correctCount: number;
   };
+
+  rivalRecord: {
+    rivalRosterId: number | null;
+    rivalDisplayName: string;
+    rivalTeamName: string;
+    rivalAvatarUrl: string;
+    yourWins: number;
+    rivalWins: number;
+    weeksPlayed: number;      // 0, 1, or 2
+  };
+
   weeklyHistory: {
     week: number;
     correct: number;
     total: number;
-    picks: {
-      matchupId: number;
-      pickedRoster: FantasyTeamInfo;
-      opponentRoster: FantasyTeamInfo;
-      isWinner: boolean | null;
-      isPickedOwnTeam: boolean;
-    }[];
+    isRivalryWeek: boolean;
+  }[];
+
+  badges: {
+    id: string;
+    name: string;
+    description: string;
+    earned: boolean;
   }[];
 }
+

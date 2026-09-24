@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { GameSplit, LeaderboardEntry, LeagueUser, UserPick, UserProfileStats, WeeklyMatchup } from '../types';
+import { getRivalRosterId, isRivalryWeek, LAUNCH_WEEK, SEASON_LAST_WEEK } from './rivalries';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -298,8 +299,6 @@ export function computeLeaderboard(
   return entries.sort((a, b) => a.rank - b.rank);
 }
 
-// ─── Profile Stats ────────────────────────────────────────────────────────────
-
 /**
  * Returns profile stats for a given user.
  * When Supabase is connected this should query real pick data;
@@ -307,26 +306,71 @@ export function computeLeaderboard(
  */
 export function computeProfileStats(
   user: LeagueUser,
-  rank: number
+  rank: number,
+  allUsers: LeagueUser[] = []
 ): UserProfileStats {
+
   // Placeholder per-user data keyed by userId
-  const perUserData: Record<string, { totalCorrect: number; totalPicks: number; bestWeek: string; streak: string; homerPicked: number; homerWins: number }> = {
-    '733806129737535488':  { totalCorrect: 5,  totalPicks: 12, bestWeek: '3/6 (Wk 2)', streak: '❄️ 2L', homerPicked: 2, homerWins: 1 },
-    '1395134837886562304': { totalCorrect: 10, totalPicks: 12, bestWeek: '6/6 (Wk 1)', streak: '🔥 4W', homerPicked: 2, homerWins: 2 },
-    '1390920768589676544': { totalCorrect: 9,  totalPicks: 12, bestWeek: '5/6 (Wk 2)', streak: '🔥 2W', homerPicked: 1, homerWins: 1 },
-    '1392682409174003712': { totalCorrect: 8,  totalPicks: 12, bestWeek: '5/6 (Wk 1)', streak: '🔥 1W', homerPicked: 2, homerWins: 1 },
-    '1390555135712727040': { totalCorrect: 8,  totalPicks: 12, bestWeek: '5/6 (Wk 2)', streak: '❄️ 1L', homerPicked: 0, homerWins: 0 },
-    '993653184742633472':  { totalCorrect: 7,  totalPicks: 12, bestWeek: '4/6 (Wk 1)', streak: '❄️ 1L', homerPicked: 1, homerWins: 0 },
-    '1002074091014148096': { totalCorrect: 7,  totalPicks: 12, bestWeek: '4/6 (Wk 2)', streak: '🔥 1W', homerPicked: 2, homerWins: 1 },
-    '1396637335524769792': { totalCorrect: 6,  totalPicks: 12, bestWeek: '4/6 (Wk 1)', streak: '❄️ 1L', homerPicked: 1, homerWins: 0 },
-    '1393409939426246656': { totalCorrect: 6,  totalPicks: 12, bestWeek: '4/6 (Wk 2)', streak: '🔥 1W', homerPicked: 0, homerWins: 0 },
-    '1393070831642345472': { totalCorrect: 5,  totalPicks: 12, bestWeek: '3/6 (Wk 2)', streak: '🔥 1W', homerPicked: 1, homerWins: 1 },
-    '1392991701408165888': { totalCorrect: 4,  totalPicks: 12, bestWeek: '3/6 (Wk 1)', streak: '❄️ 2L', homerPicked: 2, homerWins: 0 },
-    '1263975336966639616': { totalCorrect: 3,  totalPicks: 12, bestWeek: '2/6 (Wk 2)', streak: '❄️ 2L', homerPicked: 0, homerWins: 0 },
+  const perUserData: Record<string, {
+    totalCorrect: number; totalPicks: number; bestWeek: string;
+    upsetsCalled: number;
+    mostPickedTeam: string; mostPickedCount: number; mostPickedCorrect: number;
+    rivalWins: number; rivalLosses: number; rivalWeeksPlayed: number;
+    weekScores: [number, number][]; // [correct, total] per week from LAUNCH_WEEK
+    badgeIds: string[];
+  }> = {
+    '733806129737535488':  { totalCorrect: 5,  totalPicks: 12, bestWeek: '3-3', upsetsCalled: 1, mostPickedTeam: 'ene efe ele', mostPickedCount: 2, mostPickedCorrect: 0, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[2, 6], [3, 6]], badgeIds: ['first_down', 'ironman'] },
+    '1395134837886562304': { totalCorrect: 10, totalPicks: 12, bestWeek: '6-0', upsetsCalled: 3, mostPickedTeam: 'The Maye-Trix', mostPickedCount: 2, mostPickedCorrect: 2, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[4, 6], [6, 6]], badgeIds: ['first_down', 'ironman', 'perfect_week'] },
+    '1390920768589676544': { totalCorrect: 9,  totalPicks: 12, bestWeek: '5-1', upsetsCalled: 2, mostPickedTeam: 'CEEDEE\'S NUTS', mostPickedCount: 2, mostPickedCorrect: 2, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[4, 6], [5, 6]], badgeIds: ['first_down', 'ironman'] },
+    '1392682409174003712': { totalCorrect: 8,  totalPicks: 12, bestWeek: '5-1', upsetsCalled: 2, mostPickedTeam: 'Fear The Doro', mostPickedCount: 2, mostPickedCorrect: 2, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[5, 6], [3, 6]], badgeIds: ['first_down', 'ironman'] },
+    '1390555135712727040': { totalCorrect: 8,  totalPicks: 12, bestWeek: '5-1', upsetsCalled: 1, mostPickedTeam: 'Jerry\'s Last Ring', mostPickedCount: 2, mostPickedCorrect: 1, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[5, 6], [3, 6]], badgeIds: ['first_down', 'ironman'] },
+    '993653184742633472':  { totalCorrect: 7,  totalPicks: 12, bestWeek: '4-2', upsetsCalled: 1, mostPickedTeam: 'C. McCarrying MyTeam', mostPickedCount: 2, mostPickedCorrect: 1, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[4, 6], [3, 6]], badgeIds: ['first_down', 'ironman'] },
+    '1002074091014148096': { totalCorrect: 7,  totalPicks: 12, bestWeek: '4-2', upsetsCalled: 0, mostPickedTeam: 'Jerry\'s Last Ring', mostPickedCount: 2, mostPickedCorrect: 1, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[3, 6], [4, 6]], badgeIds: ['first_down', 'ironman'] },
+    '1396637335524769792': { totalCorrect: 6,  totalPicks: 12, bestWeek: '4-2', upsetsCalled: 1, mostPickedTeam: 'Shotgun Germizz', mostPickedCount: 2, mostPickedCorrect: 1, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[4, 6], [2, 6]], badgeIds: ['first_down', 'ironman'] },
+    '1393409939426246656': { totalCorrect: 6,  totalPicks: 12, bestWeek: '4-2', upsetsCalled: 0, mostPickedTeam: 'Amon drugs', mostPickedCount: 2, mostPickedCorrect: 1, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[2, 6], [4, 6]], badgeIds: ['first_down', 'ironman'] },
+    '1393070831642345472': { totalCorrect: 5,  totalPicks: 12, bestWeek: '3-3', upsetsCalled: 0, mostPickedTeam: 'The Maye-Trix', mostPickedCount: 2, mostPickedCorrect: 1, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[3, 6], [2, 6]], badgeIds: ['first_down'] },
+    '1392991701408165888': { totalCorrect: 4,  totalPicks: 12, bestWeek: '3-3', upsetsCalled: 0, mostPickedTeam: 'CEEDEE\'S NUTS', mostPickedCount: 2, mostPickedCorrect: 1, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[3, 6], [1, 6]], badgeIds: ['first_down'] },
+    '1263975336966639616': { totalCorrect: 3,  totalPicks: 12, bestWeek: '2-4', upsetsCalled: 0, mostPickedTeam: 'Daejon Love\'s Team', mostPickedCount: 2, mostPickedCorrect: 0, rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0, weekScores: [[2, 6], [1, 6]], badgeIds: ['first_down'] },
   };
 
-  const d = perUserData[user.userId] ?? { totalCorrect: 0, totalPicks: 0, bestWeek: '—', streak: '—', homerPicked: 0, homerWins: 0 };
+  const d = perUserData[user.userId] ?? {
+    totalCorrect: 0, totalPicks: 0, bestWeek: '—', upsetsCalled: 0,
+    mostPickedTeam: '—', mostPickedCount: 0, mostPickedCorrect: 0,
+    rivalWins: 0, rivalLosses: 0, rivalWeeksPlayed: 0,
+    weekScores: [], badgeIds: [],
+  };
   const winPct = d.totalPicks > 0 ? Math.round((d.totalCorrect / d.totalPicks) * 1000) / 10 : 0;
+
+  // Build rival info
+  const rivalRosterId = getRivalRosterId(user.rosterId);
+  const rivalUser = rivalRosterId ? allUsers.find((u) => u.rosterId === rivalRosterId) : null;
+
+  // Build weekly history W3–W14
+  const weeklyHistory: UserProfileStats['weeklyHistory'] = [];
+  for (let w = LAUNCH_WEEK; w <= SEASON_LAST_WEEK; w++) {
+    const idx = w - LAUNCH_WEEK;
+    const score = d.weekScores[idx];
+    weeklyHistory.push({
+      week: w,
+      correct: score ? score[0] : 0,
+      total: score ? score[1] : 0,
+      isRivalryWeek: isRivalryWeek(w),
+    });
+  }
+
+  // Badge definitions
+  const ALL_BADGES: { id: string; name: string; description: string }[] = [
+    { id: 'first_down',    name: 'First Down',    description: 'Submitted picks for a week' },
+    { id: 'ironman',       name: 'Ironman',        description: 'Never missed a week' },
+    { id: 'perfect_week',  name: 'Perfect Week',   description: 'All 6 picks correct' },
+    { id: 'top_dog',       name: 'Top Dog',        description: 'Won a weekly leaderboard' },
+    { id: 'clutch',        name: 'Clutch',         description: 'Won a tiebreaker' },
+    { id: 'upset_artist',  name: 'Upset Artist',   description: '3 upsets called in a week' },
+    { id: 'rival_slayer',  name: 'Rival Slayer',   description: 'Won both rivalry weeks' },
+    { id: 'hot_take',      name: 'Hot Take',       description: 'Picked against majority on 4+ and won the week' },
+  ];
+
+  const earnedSet = new Set(d.badgeIds);
 
   return {
     user,
@@ -335,15 +379,28 @@ export function computeProfileStats(
     totalPicks: d.totalPicks,
     winPct,
     bestWeek: d.bestWeek,
-    currentStreak: d.streak,
-    homerRate: {
-      pickedOwn: d.homerPicked,
-      totalWeeks: 2,
-      winRatePct: d.homerPicked > 0 ? Math.round((d.homerWins / d.homerPicked) * 100) : 0,
+    upsetsCalledCorrectly: d.upsetsCalled,
+    mostPickedTeam: {
+      teamName: d.mostPickedTeam,
+      count: d.mostPickedCount,
+      correctCount: d.mostPickedCorrect,
     },
-    weeklyHistory: [
-      { week: 1, correct: Math.floor(d.totalCorrect / 2), total: 6, picks: [] },
-      { week: 2, correct: d.totalCorrect - Math.floor(d.totalCorrect / 2), total: 6, picks: [] },
-    ],
+    rivalRecord: {
+      rivalRosterId,
+      rivalDisplayName: rivalUser?.displayName ?? 'Unknown',
+      rivalTeamName: rivalUser?.teamName ?? 'Unknown',
+      rivalAvatarUrl: rivalUser?.avatarUrl ?? '',
+      yourWins: d.rivalWins,
+      rivalWins: d.rivalLosses,
+      weeksPlayed: d.rivalWeeksPlayed,
+    },
+    weeklyHistory,
+    badges: ALL_BADGES.map((b) => ({
+      ...b,
+      earned: earnedSet.has(b.id),
+    })),
   };
 }
+
+
+

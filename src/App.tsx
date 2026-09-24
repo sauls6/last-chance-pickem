@@ -119,7 +119,7 @@ export function App() {
     ? (leaderboardEntries.find((e) => e.userId === targetUser.userId)?.rank ?? 1)
     : 1;
 
-  const targetStats = targetUser ? computeProfileStats(targetUser, targetRank) : null;
+  const targetStats = targetUser ? computeProfileStats(targetUser, targetRank, users) : null;
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#F2F2E8] flex flex-col selection:bg-[#6A85FA] selection:text-white">
