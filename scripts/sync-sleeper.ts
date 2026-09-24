@@ -1,4 +1,30 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
+
+// Auto-load .env.local and .env when running via tsx (Node.js doesn't auto-load Vite env files)
+function loadEnvFile(file: string) {
+  const fullPath = path.resolve(process.cwd(), file);
+  if (!fs.existsSync(fullPath)) return;
+  const content = fs.readFileSync(fullPath, 'utf-8');
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx === -1) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    let val = trimmed.slice(eqIdx + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    if (!process.env[key]) {
+      process.env[key] = val;
+    }
+  }
+}
+
+loadEnvFile('.env.local');
+loadEnvFile('.env');
 
 const SLEEPER_LEAGUE_ID = '1390903684027670528';
 const BASE_API_URL = 'https://api.sleeper.app/v1';
@@ -122,7 +148,6 @@ async function runSync() {
   const kickoffAt = getThursdayKickoff(state.week);
   const now = Date.now();
   const isAfterKickoff = now >= kickoffAt.getTime();
-  const isPastWeek = state.week < state.week; // always false here, kept for clarity
 
   const gameRows = Array.from(grouped.entries()).flatMap(([mid, pair]) => {
     if (pair.length !== 2) return [];
