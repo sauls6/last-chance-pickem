@@ -10,6 +10,15 @@ export const supabase: SupabaseClient | null =
 
 export const isSupabaseConnected = Boolean(supabase);
 
+if (!isSupabaseConnected) {
+  console.warn(
+    '⚠️ Supabase credentials not found at build time. App is operating in local/offline fallback mode. ' +
+    'To connect Supabase in Cloudflare, add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Cloudflare Dashboard → Settings → Environment Variables.'
+  );
+} else {
+  console.log('⚡ Connected to Supabase:', supabaseUrl);
+}
+
 // Local storage keys
 const STORAGE_PREFIX = 'last_chance_pickem_';
 const AUTH_KEY = `${STORAGE_PREFIX}active_user`;
