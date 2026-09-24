@@ -51,23 +51,27 @@ flowchart TD
     App --> Tab1["PicksView"]
     App --> Tab2["LeaderboardView"]
     App --> Tab3["ProfileView"]
-    App --> Auth["PinAuthModal"]
+    App --> Auth["PinAuthModal (Visible 4-digit PIN)"]
     App --> Nav["BlobNav (Spring Pill)"]
 
-    Tab1 --> Rail["WeekRail (Wk 1–14)"]
-    Tab1 --> Cards["6 MatchupCards"]
+    Tab1 --> Rail["WeekRail (Wk 1–14, Pre-launch & ⚔️ Rivalry Badges)"]
+    Tab1 --> Cards["6 MatchupCards (Projected Scores + Accordion Tray)"]
+    Cards --> Accordion["Matchup Preview Tray (Win Prob Gauge, AVG FPTS, Start/Sit Acc, Sleeper Link)"]
     Tab1 --> Splits["Consensus Split Bar"]
-    Tab1 --> TB["Player Ceiling Tiebreaker"]
+    Tab1 --> TB["Player Ceiling Tiebreaker (No Spinners)"]
 
     Tab2 --> Standing["Season Standings (Crown 👑, Streaks)"]
     Tab2 --> Weekly["Weekly Champions View"]
 
     Tab3 --> Hero["Avatar Hero + Rank"]
-    Tab3 --> Grid["4-Stat Grid"]
-    Tab3 --> Hist["Past Week History"]
+    Tab3 --> Grid["Fantasy 4-Stat Grid (Accuracy, Upsets Called, Best Week, Most Picked)"]
+    Tab3 --> Rival["Vs Rival Card (Ida y Vuelta · W4 & W14)"]
+    Tab3 --> Season["Season Grid (W3–W14 Slate · 12 Weeks)"]
+    Tab3 --> Badges["8 Shield Badges (Electric Blue SVG Shields)"]
 
     Cards --> Sleeper["Sleeper API (free, no auth)"]
     Sleeper --> Store["store.ts (Supabase + localStorage fallback)"]
+    Store --> Rivalries["rivalries.ts (6 Confirmed League Rival Pairs)"]
 ```
 
 **Tech Stack**: React 19 + TypeScript + Vite 8 + Tailwind v4 + Lucide + Canvas Confetti + Supabase JS
@@ -76,24 +80,25 @@ flowchart TD
 
 ## 4. Implementation Status ✅ (Deployment-Ready)
 
-`pnpm build` → **0 TypeScript errors · 279 kB JS · ~520ms**  
+`pnpm build` → **0 TypeScript errors · 295 kB JS · ~510ms**  
 `pnpm sync`  → **Live Sleeper data · 12 managers · 6 matchups**
 
 | File | Status | Notes |
 |:---|:---:|:---|
-| `src/index.css` | ✅ | Tailwind v4, `@theme {}`, OLED palette, Anton/Barlow, `.glow-card` |
-| `src/types/index.ts` | ✅ | All shared interfaces |
-| `src/lib/sleeper.ts` | ✅ | Real Thursday kickoff per week, `isLocked` time check, 1-min cache |
-| `src/lib/store.ts` | ✅ | Supabase + localStorage dual-mode, per-user profile stats |
-| `src/components/BlobNav.tsx` | ✅ | Button refs, rAF measurement, no flash |
-| `src/components/WeekRail.tsx` | ✅ | Scroll-into-view active pill |
-| `src/components/MatchupCard.tsx` | ✅ | Glow on pick, live scores, split bar |
-| `src/components/PicksView.tsx` | ✅ | Stable dep key, parallel load, lock-aware |
+| `src/index.css` | ✅ | Tailwind v4, OLED palette, global dark scrollbars, number spinner removal |
+| `src/types/index.ts` | ✅ | Shared types, fantasy analytics, rival records, badges, projected scores |
+| `src/lib/rivalries.ts` | ✅ | 6 confirmed rivalry pairs (W4 & W14), `LAUNCH_WEEK = 3`, `SEASON_LAST_WEEK = 14` |
+| `src/lib/sleeper.ts` | ✅ | Thursday kickoffs, live roster stats (`avgPoints`, `startSitAccuracy`, `winProb`) |
+| `src/lib/store.ts` | ✅ | Supabase + localStorage dual-mode, per-user profile stats with rival tracking |
+| `src/components/BlobNav.tsx` | ✅ | Button refs, rAF measurement, zero flash |
+| `src/components/WeekRail.tsx` | ✅ | Scroll-into-view pill, pre-launch `—` badges, `⚔️` rivalry indicators |
+| `src/components/MatchupCard.tsx` | ✅ | Projected team scores, win probability bar, inline accordion tray, Sleeper link |
+| `src/components/PicksView.tsx` | ✅ | Pre-launch banner for W1/W2, tiebreaker input with no spinners, lock-aware |
 | `src/components/LeaderboardView.tsx` | ✅ | Skeleton loaders, live Sleeper names/avatars |
-| `src/components/ProfileView.tsx` | ✅ | History from data, per-user stats |
-| `src/components/PinAuthModal.tsx` | ✅ | Reset on reopen, numeric inputMode, click-outside |
+| `src/components/ProfileView.tsx` | ✅ | Hero, fantasy stat tiles, Vs Rival card, W3–W14 season grid, 8 SVG badges |
+| `src/components/PinAuthModal.tsx` | ✅ | Visible numeric digits (`1 2 3 4`), reset on reopen, click-outside |
 | `src/components/Header.tsx` | ✅ | Sticky top bar, user chip |
-| `src/App.tsx` | ✅ | usersLoading state, profile CTA for anon users |
+| `src/App.tsx` | ✅ | usersLoading state, profile CTA for anon users, rival resolution |
 | `src/supabase_schema.sql` | ✅ | No FK picks→games, `score_week_picks()`, `leaderboard` view, indexes |
 | `scripts/sync-sleeper.ts` | ✅ | Real kickoffs, typed, auto-scores picks when week is final |
 | `index.html` | ✅ | PWA meta, OG tags, Apple mobile capable, theme-color |

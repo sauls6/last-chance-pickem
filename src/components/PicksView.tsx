@@ -5,6 +5,7 @@ import { WeekRail } from './WeekRail';
 import { getGameSplits, getPicksForWeek, getTiebreaker, savePicksForWeek, saveTiebreaker } from '../lib/store';
 import { Clock, ShieldAlert, Sparkles, CheckCircle2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { LAUNCH_WEEK } from '../lib/rivalries';
 
 interface PicksViewProps {
   currentUser: LeagueUser | null;
@@ -171,39 +172,59 @@ export const PicksView: React.FC<PicksViewProps> = ({
         </div>
       )}
 
-      {/* Matchups List */}
-      <div className="mt-4">
-        {loadingMatchups ? (
-          <div className="space-y-4">
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <div
-                key={n}
-                className="h-36 bg-[#0E1013] border border-[#1C1F26] rounded-2xl animate-pulse"
-              />
-            ))}
+      {/* Matchups List or Pre-Launch Notice */}
+      {selectedWeek < LAUNCH_WEEK ? (
+        <div className="mt-6 p-8 rounded-3xl bg-[#0E1013] border border-[#1C1F26] text-center">
+          <div className="w-12 h-12 rounded-full bg-[#161922] border border-[#242A38] flex items-center justify-center mx-auto mb-3 text-xl">
+            🏈
           </div>
-        ) : matchups.length === 0 ? (
-          <div className="text-center py-12 text-[#9AA0A6] text-sm">
-            <ShieldAlert className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            No matchups found for this week.
-          </div>
-        ) : (
-          matchups.map((m) => {
-            const split = splits[m.id];
-            return (
-              <MatchupCard
-                key={m.id}
-                matchup={m}
-                selectedRosterId={picks[m.id]}
-                onPickTeam={(rid) => handlePick(m.id, rid)}
-                splitA={split ? split[m.teamA.rosterId] : undefined}
-                splitB={split ? split[m.teamB.rosterId] : undefined}
-                disabled={isCurrentWeekLocked || !isWeekOpen}
-              />
-            );
-          })
-        )}
-      </div>
+          <h3 className="font-display text-xl text-[#F2F2E8] mb-1">
+            Pre-Launch Slate (Week {selectedWeek})
+          </h3>
+          <p className="text-xs text-[#9AA0A6] max-w-sm mx-auto mb-5 leading-relaxed">
+            Last Chance Pick'em officially launched in Week {LAUNCH_WEEK}. No picks were recorded for Weeks 1 and 2.
+          </p>
+          <button
+            onClick={() => onSelectWeek(currentNflWeek)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#6A85FA] hover:bg-[#5A75EA] text-white text-xs font-bold transition-all shadow-[0_0_16px_rgba(106,133,250,0.35)] cursor-pointer"
+          >
+            Jump to Week {currentNflWeek} →
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4">
+          {loadingMatchups ? (
+            <div className="space-y-4">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <div
+                  key={n}
+                  className="h-36 bg-[#0E1013] border border-[#1C1F26] rounded-2xl animate-pulse"
+                />
+              ))}
+            </div>
+          ) : matchups.length === 0 ? (
+            <div className="text-center py-12 text-[#9AA0A6] text-sm">
+              <ShieldAlert className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              No matchups found for this week.
+            </div>
+          ) : (
+            matchups.map((m) => {
+              const split = splits[m.id];
+              return (
+                <MatchupCard
+                  key={m.id}
+                  matchup={m}
+                  selectedRosterId={picks[m.id]}
+                  onPickTeam={(rid) => handlePick(m.id, rid)}
+                  splitA={split ? split[m.teamA.rosterId] : undefined}
+                  splitB={split ? split[m.teamB.rosterId] : undefined}
+                  disabled={isCurrentWeekLocked || !isWeekOpen}
+                />
+              );
+            })
+          )}
+        </div>
+      )}
 
       {/* Tiebreaker: only show when week is open AND not yet locked */}
       {isWeekOpen && !isCurrentWeekLocked && matchups.length > 0 && (
