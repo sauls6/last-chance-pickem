@@ -112,10 +112,13 @@ export async function fetchWeeklyMatchups(
   currentNflWeek: number,
   season = '2026'
 ): Promise<WeeklyMatchup[]> {
-  const [rawMatchups, users, rosters] = await Promise.all([
+  const [rawMatchups, users, rosters, projectionsMap] = await Promise.all([
     fetchWithCache<RawSleeperMatchup[]>(`league/${SLEEPER_LEAGUE_ID}/matchups/${week}`),
     fetchWithCache<RawSleeperUser[]>(`league/${SLEEPER_LEAGUE_ID}/users`),
     fetchWithCache<RawSleeperRoster[]>(`league/${SLEEPER_LEAGUE_ID}/rosters`),
+    fetchWithCache<Record<string, { pts_ppr?: number }>>(
+      `projections/nfl/regular/${season}/${week}`
+    ).catch(() => null),
   ]);
 
   const userMap = new Map<string, RawSleeperUser>();
@@ -134,11 +137,21 @@ export async function fetchWeeklyMatchups(
     const avatarUrl = getAvatarUrl(owner?.avatar || owner?.metadata?.avatar, displayName);
     const record = roster ? `${roster.settings.wins}-${roster.settings.losses}` : '0-0';
 
-    // Season analytics derived from roster settings (no extra API calls)
+    // Season analytics derived from roster settings
     const fpts = (roster?.settings.fpts ?? 0) + (roster?.settings.fpts_decimal ?? 0) / 100;
     const ppts = (roster?.settings.ppts ?? 0) + (roster?.settings.ppts_decimal ?? 0) / 100;
     const avgPoints = Math.round((fpts / completedWeeks) * 100) / 100;
     const startSitAccuracy = ppts > 0 ? Math.round((fpts / ppts) * 1000) / 10 : 100;
+
+    // Lineup projected points from Sleeper's active starters (PPR scoring)
+    let projectedPoints = avgPoints;
+    if (projectionsMap && m.starters && m.starters.length > 0) {
+      const sum = m.starters.reduce(
+        (acc, pid) => acc + (projectionsMap[pid]?.pts_ppr ?? 0),
+        0
+      );
+      if (sum > 0) projectedPoints = Math.round(sum * 10) / 10;
+    }
 
     return {
       rosterId: m.roster_id,
@@ -148,7 +161,7 @@ export async function fetchWeeklyMatchups(
       avatarUrl,
       record,
       points: m.points || 0,
-      projectedPoints: avgPoints, // best pre-game estimate = season avg
+      projectedPoints,
       avgPoints,
       startSitAccuracy,
     };
@@ -190,12 +203,11 @@ export async function fetchWeeklyMatchups(
     // Locked once Thursday kickoff has passed or it's a past week
     const isLocked = week < currentNflWeek || (week === currentNflWeek && isAfterKickoff);
 
-    // Win probability via logistic function on projected spread
-    // σ = ~32 pts (typical weekly scoring std dev in PPR leagues)
+    // Win probability matching Sleeper's calculation from projected lineup spread
     const projA = teamA.projectedPoints ?? teamA.avgPoints ?? 100;
     const projB = teamB.projectedPoints ?? teamB.avgPoints ?? 100;
     const diff = projA - projB;
-    const winProbA = Math.min(95, Math.max(5, Math.round(100 / (1 + Math.pow(10, -diff / 32)))));
+    const winProbA = Math.min(95, Math.max(5, Math.round(50 + (diff / 28) * 20)));
     const winProbB = 100 - winProbA;
 
     // Projected spread label: show the favorite with their margin
