@@ -219,6 +219,7 @@ export const PicksView: React.FC<PicksViewProps> = ({
                   splitA={split ? split[m.teamA.rosterId] : undefined}
                   splitB={split ? split[m.teamB.rosterId] : undefined}
                   disabled={isCurrentWeekLocked || !isWeekOpen}
+                  currentUserRosterId={currentUser?.rosterId}
                 />
               );
             })

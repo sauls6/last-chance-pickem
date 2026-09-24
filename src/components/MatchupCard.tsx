@@ -11,6 +11,7 @@ interface MatchupCardProps {
   splitA?: { count: number; pct: number };
   splitB?: { count: number; pct: number };
   disabled?: boolean;
+  currentUserRosterId?: number;
 }
 
 function StatCompare({
@@ -40,6 +41,7 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
   splitA,
   splitB,
   disabled = false,
+  currentUserRosterId,
 }) => {
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -53,7 +55,14 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
   const winProbA = matchup.winProbabilityA;
   const winProbB = matchup.winProbabilityB;
 
-  const sleeperMatchupUrl = `https://sleeper.com/leagues/${SLEEPER_LEAGUE_ID}/matchup/${matchup.week}`;
+  const isUserMatchup =
+    Boolean(currentUserRosterId) &&
+    (matchup.teamA.rosterId === currentUserRosterId ||
+      matchup.teamB.rosterId === currentUserRosterId);
+
+  const sleeperMatchupUrl = isUserMatchup
+    ? `https://sleeper.com/leagues/${SLEEPER_LEAGUE_ID}/matchup`
+    : `https://sleeper.com/leagues/${SLEEPER_LEAGUE_ID}/league`;
 
   return (
     <div className="relative mb-4 bg-[#0E1013] border border-[#1C1F26] rounded-2xl overflow-hidden transition-all duration-200">
