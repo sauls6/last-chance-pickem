@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { LeaderboardEntry, LeagueUser } from '../types';
-import { Crown, Flame, Snowflake } from 'lucide-react';
+import { Crown, Trophy } from 'lucide-react';
 
 interface LeaderboardViewProps {
   entries: LeaderboardEntry[];
@@ -118,7 +118,6 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
             : entries.map((r) => {
             const isUser = currentUser && r.userId === currentUser.userId;
             const isTop3 = r.rank <= 3;
-            const isFire = r.streak.includes('🔥');
 
             return (
               <div
@@ -170,15 +169,23 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
 
                 {/* Record & Stats */}
                 <div className="text-right flex items-center gap-3">
-                  {/* Streak badge */}
-                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#111317] border border-[#1C1F26]">
-                    {isFire ? (
-                      <Flame className="w-3 h-3 text-orange-400" />
-                    ) : (
-                      <Snowflake className="w-3 h-3 text-blue-300" />
-                    )}
-                    {r.streak}
-                  </span>
+                  {/* Weekly Wins / Trophies badge */}
+                  {r.weeklyWins > 0 ? (
+                    <span
+                      title={`${r.weeklyWins} Weekly 1st Place ${r.weeklyWins === 1 ? 'Finish' : 'Finishes'}`}
+                      className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.15)]"
+                    >
+                      <Trophy className="w-3 h-3 text-amber-400" />
+                      {r.weeklyWins}W
+                    </span>
+                  ) : (
+                    <span
+                      title="0 Weekly 1st Place Finishes"
+                      className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#111317] text-[#64748B] border border-[#1C1F26]"
+                    >
+                      0W
+                    </span>
+                  )}
 
                   <div>
                     <span className="font-display text-xl text-[#F2F2E8] leading-none block">

@@ -139,17 +139,17 @@ pnpm preview
 
 ### Local Test Checklist
 
-1. **Picks tab loads** — real team names/avatars from Sleeper, 6 matchup cards visible
-2. **Pick a team** — card glows blue, checkmark, counter updates (`3 / 6`)
-3. **Save Picks** — confetti fires, blue success toast
-4. **Week 1 / 2** — `Final` status, real fantasy scores, cards disabled
-5. **Tiebreaker** — enter `38.5` → saves with picks
-6. **Claim Team** — select manager → 4-digit PIN → signed in; refresh → still signed in
-7. **Wrong PIN** — error shown, no sign-in
-8. **Leaderboard** — 12 managers with streaks → click row → opens profile
-9. **Profile (signed in)** — correct user's stats, weekly W/L history
-10. **Profile (anon)** — shows "Claim Team" CTA, not a blank screen
-11. **Sign out** — returns to unauthenticated state
+- [ ] **Picks tab loads** — real team names/avatars from Sleeper, 6 matchup cards visible
+- [ ] **Pick a team** — card glows blue, checkmark, counter updates (`3 / 6`)
+- [ ] **Save Picks** — confetti fires, blue success toast
+- [ ] **Week 1 / 2** — `Final` status, real fantasy scores, cards disabled
+- [ ] **Tiebreaker** — enter `38.5` → saves with picks
+- [ ] **Claim Team** — select manager → 4-digit PIN → signed in; refresh → still signed in
+- [ ] **Wrong PIN** — error shown, no sign-in
+- [ ] **Leaderboard** — 12 managers with streaks → click row → opens profile
+- [ ] **Profile (signed in)** — correct user's stats, weekly W/L history
+- [ ] **Profile (anon)** — shows "Claim Team" CTA, not a blank screen
+- [ ] **Sign out** — returns to unauthenticated state
 
 > Picks only exist per-device until Supabase is connected.
 
