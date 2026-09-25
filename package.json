@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "sync": "tsx scripts/sync-sleeper.ts"
+    "sync": "pnpm dlx tsx scripts/sync-sleeper.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
