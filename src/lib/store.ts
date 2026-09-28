@@ -560,20 +560,35 @@ export async function fetchProfileStats(
 ): Promise<UserProfileStats> {
   if (supabase) {
     try {
-      const [userPicksRes, tbRes] = await Promise.all([
+      const [userPicksRes, tbRes, gamesRes, allPicksRes, champs] = await Promise.all([
         supabase.from('picks').select('*').eq('user_id', user.userId),
         supabase.from('tiebreakers').select('*').eq('user_id', user.userId),
+        supabase.from('games').select('*'),
+        supabase.from('picks').select('game_id, selected_roster_id, is_correct'),
+        fetchWeeklyChampions(allUsers),
       ]);
 
       const userPicks = userPicksRes.data || [];
       const userTbs = tbRes.data || [];
+      const gamesData = gamesRes.data || [];
+      const allPicksData = allPicksRes.data || [];
+
+      // Determine weeks where all matchups are 100% finished
+      const completedWeeksSet = new Set<number>();
+      const candidateWeeks = Array.from(new Set(gamesData.map((g: { week: number }) => g.week)));
+      candidateWeeks.forEach((wk) => {
+        const wkGames = gamesData.filter((g: { week: number; status: string }) => g.week === wk);
+        if (wkGames.length > 0 && wkGames.every((g: { status: string }) => g.status === 'final')) {
+          completedWeeksSet.add(wk);
+        }
+      });
 
       const gradedPicks = userPicks.filter((p: { is_correct: boolean | null }) => p.is_correct !== null);
       const totalCorrect = gradedPicks.filter((p: { is_correct: boolean }) => p.is_correct).length;
       const totalPicks = gradedPicks.length;
       const winPct = totalPicks > 0 ? Math.round((totalCorrect / totalPicks) * 1000) / 10 : 0;
 
-      // Best week score
+      // Best week score — only counted from completed weeks
       const weekScoreMap = new Map<number, { correct: number; total: number }>();
       gradedPicks.forEach((p: { week: number; is_correct: boolean }) => {
         if (!weekScoreMap.has(p.week)) weekScoreMap.set(p.week, { correct: 0, total: 0 });
@@ -584,17 +599,36 @@ export async function fetchProfileStats(
 
       let bestWeekStr = '—';
       let maxScore = -1;
-      weekScoreMap.forEach((ws, wk) => {
-        if (ws.correct > maxScore) {
+      completedWeeksSet.forEach((wk) => {
+        const ws = weekScoreMap.get(wk);
+        if (ws && ws.correct > maxScore) {
           maxScore = ws.correct;
           bestWeekStr = `${ws.correct}-${ws.total - ws.correct} (Wk ${wk})`;
         }
       });
 
-      // Upsets called
+      // Upsets called & Hot Take badge (picking against the majority)
+      const gamePicksMap = new Map<string, { [rosterId: number]: number }>();
+      allPicksData.forEach((p: { game_id: string; selected_roster_id: number }) => {
+        if (!gamePicksMap.has(p.game_id)) gamePicksMap.set(p.game_id, {});
+        const counts = gamePicksMap.get(p.game_id)!;
+        counts[p.selected_roster_id] = (counts[p.selected_roster_id] || 0) + 1;
+      });
+
       let upsetsCalled = 0;
-      gradedPicks.forEach((p: { is_correct: boolean }) => {
-        if (p.is_correct) upsetsCalled++;
+      let hasHotTake = false;
+      userPicks.forEach((p: { game_id: string; selected_roster_id: number; is_correct: boolean | null }) => {
+        const counts = gamePicksMap.get(p.game_id);
+        if (counts) {
+          const userPickCount = counts[p.selected_roster_id] || 0;
+          const totalGamePicks = Object.values(counts).reduce((a, b) => a + b, 0);
+          if (totalGamePicks > 1 && userPickCount < totalGamePicks / 2) {
+            hasHotTake = true;
+            if (p.is_correct === true) {
+              upsetsCalled++;
+            }
+          }
+        }
       });
 
       // Most Picked Team
@@ -651,20 +685,27 @@ export async function fetchProfileStats(
 
       // Dynamic Badges
       const hasPickedAtLeastOne = userPicks.length > 0;
-      const perfectWeek = Array.from(weekScoreMap.values()).some((ws) => ws.total === 6 && ws.correct === 6);
-      const wonTiebreaker = userTbs.some((tb: { actual_points: number | null; predicted_points: number }) =>
-        tb.actual_points !== null && tb.actual_points !== undefined && Math.abs(tb.predicted_points - tb.actual_points) <= 1
+      const perfectWeek = Array.from(completedWeeksSet).some((wk) => {
+        const ws = weekScoreMap.get(wk);
+        return ws && ws.total === 6 && ws.correct === 6;
+      });
+      const wonWeeklyChampion = champs.some((c) => c.winnerUser.userId === user.userId);
+      const wonTiebreaker = champs.some((c) =>
+        c.winnerUser.userId === user.userId &&
+        userTbs.some((tb: { week: number; actual_points?: number | null }) =>
+          tb.week === c.week && tb.actual_points !== null && tb.actual_points !== undefined
+        )
       );
 
       const ALL_BADGES: { id: string; name: string; description: string; earned: boolean }[] = [
         { id: 'first_down',   name: 'First Down',   description: 'Submitted picks for a week', earned: hasPickedAtLeastOne },
         { id: 'ironman',      name: 'Ironman',       description: 'Never missed a week',        earned: hasPickedAtLeastOne },
         { id: 'perfect_week', name: 'Perfect Week',  description: 'All 6 picks correct',       earned: perfectWeek },
-        { id: 'top_dog',      name: 'Top Dog',       description: 'Won a weekly leaderboard',   earned: rank === 1 && totalCorrect > 0 },
+        { id: 'top_dog',      name: 'Top Dog',       description: 'Won a weekly leaderboard',   earned: wonWeeklyChampion },
         { id: 'clutch',       name: 'Clutch',        description: 'Won a tiebreaker',          earned: wonTiebreaker },
         { id: 'upset_artist', name: 'Upset Artist',  description: '3 upsets called in a week', earned: upsetsCalled >= 3 },
-        { id: 'rival_slayer', name: 'Rival Slayer',  description: 'Won both rivalry weeks',    earned: rivalWins === 2 },
-        { id: 'hot_take',     name: 'Hot Take',      description: 'Picked against majority',   earned: false },
+        { id: 'rival_slayer', name: 'Rival Slayer',  description: 'Won both rivalry weeks',    earned: rivalWins === 2 && completedWeeksSet.has(4) && completedWeeksSet.has(14) },
+        { id: 'hot_take',     name: 'Hot Take',      description: 'Picked against majority',   earned: hasHotTake },
       ];
 
       return {

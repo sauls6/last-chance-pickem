@@ -12,6 +12,7 @@ interface MatchupCardProps {
   splitB?: { count: number; pct: number };
   disabled?: boolean;
   currentUserRosterId?: number;
+  isCurrentWeek?: boolean;
 }
 
 function StatCompare({
@@ -42,6 +43,7 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
   splitB,
   disabled = false,
   currentUserRosterId,
+  isCurrentWeek = false,
 }) => {
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -373,16 +375,18 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
             valB={matchup.teamB.startSitAccuracy !== undefined ? `${matchup.teamB.startSitAccuracy.toFixed(1)}%` : '—'}
           />
 
-          {/* Open in Sleeper link */}
-          <a
-            href={sleeperMatchupUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 flex items-center justify-center gap-1.5 w-full py-2 rounded-xl bg-[#1C1F26] hover:bg-[#2A2F3D] text-[#9AA0A6] hover:text-[#F2F2E8] text-xs font-semibold transition-colors"
-          >
-            Open in Sleeper
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          {/* Open in Sleeper link — only shown for the active current week */}
+          {isCurrentWeek && (
+            <a
+              href={sleeperMatchupUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex items-center justify-center gap-1.5 w-full py-2 rounded-xl bg-[#1C1F26] hover:bg-[#2A2F3D] text-[#9AA0A6] hover:text-[#F2F2E8] text-xs font-semibold transition-colors"
+            >
+              {isUserMatchup ? 'Open My Matchup in Sleeper' : 'View League in Sleeper'}
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
         </div>
       </div>
     </div>
