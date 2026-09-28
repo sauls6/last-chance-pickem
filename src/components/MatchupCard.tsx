@@ -52,6 +52,12 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
   const isPickA = selectedRosterId === matchup.teamA.rosterId;
   const isPickB = selectedRosterId === matchup.teamB.rosterId;
 
+  const isLostA = isFinal && isPickA && matchup.winnerRosterId !== null && matchup.winnerRosterId !== matchup.teamA.rosterId;
+  const isWonA = isFinal && isPickA && matchup.winnerRosterId === matchup.teamA.rosterId;
+
+  const isLostB = isFinal && isPickB && matchup.winnerRosterId !== null && matchup.winnerRosterId !== matchup.teamB.rosterId;
+  const isWonB = isFinal && isPickB && matchup.winnerRosterId === matchup.teamB.rosterId;
+
   const projA = matchup.teamA.projectedPoints;
   const projB = matchup.teamB.projectedPoints;
   const winProbA = matchup.winProbabilityA;
@@ -67,7 +73,15 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
     : `https://sleeper.com/leagues/${SLEEPER_LEAGUE_ID}/league`;
 
   return (
-    <div className="relative mb-4 bg-[#0E1013] border border-[#1C1F26] rounded-2xl overflow-hidden transition-all duration-200">
+    <div
+      className={`relative mb-4 bg-[#0E1013] border rounded-2xl overflow-hidden transition-all duration-200 ${
+        isLostA || isLostB
+          ? 'border-[#E5484D]/35 shadow-[0_0_20px_rgba(229,72,77,0.12)]'
+          : isWonA || isWonB
+          ? 'border-[#6A85FA]/35 shadow-[0_0_20px_rgba(106,133,250,0.12)]'
+          : 'border-[#1C1F26]'
+      }`}
+    >
       <div className="p-3 md:p-4">
         {/* ── Header / Status ────────────────────────────────── */}
         <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-[#1C1F26] text-xs">
@@ -80,8 +94,16 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
               </span>
             )}
             {isFinal && (
-              <span className="font-semibold text-[#9AA0A6] px-2 py-0.5 rounded-full bg-[#1C1F26]">
-                Final
+              <span
+                className={`font-semibold px-2 py-0.5 rounded-full text-xs ${
+                  isLostA || isLostB
+                    ? 'bg-[#E5484D]/15 text-[#E5484D] border border-[#E5484D]/30'
+                    : isWonA || isWonB
+                    ? 'bg-[#6A85FA]/15 text-[#6A85FA] border border-[#6A85FA]/30'
+                    : 'bg-[#1C1F26] text-[#9AA0A6]'
+                }`}
+              >
+                {isLostA || isLostB ? 'Final · Loss' : isWonA || isWonB ? 'Final · Win' : 'Final'}
               </span>
             )}
             {!isLive && !isFinal && (
@@ -100,22 +122,24 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
             disabled={disabled || matchup.isLocked}
             onClick={() => onPickTeam(matchup.teamA.rosterId)}
             className={`group relative flex flex-col items-center justify-between p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
-              isPickA
+              isLostA
+                ? 'glow-lost bg-[#1A0E10]'
+                : isPickA
                 ? 'glow-card bg-[#141824]'
+                : (matchup.isLocked || isFinal) && selectedRosterId
+                ? 'bg-[#111317] border-[#1C1F26] opacity-40 hover:opacity-50'
                 : 'bg-[#111317] border-[#1C1F26] hover:border-[#2C3240] hover:bg-[#151820]'
-            } ${disabled || matchup.isLocked ? 'cursor-not-allowed opacity-90' : ''}`}
+            } ${disabled || matchup.isLocked ? 'cursor-not-allowed' : ''}`}
           >
             {isPickA && (
               <div
                 className={`absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-white shadow-md ${
-                  isFinal
-                    ? matchup.winnerRosterId === matchup.teamA.rosterId
-                      ? 'bg-[#22C55E] shadow-[0_0_8px_#22C55E]'
-                      : 'bg-[#EF4444] shadow-[0_0_8px_#EF4444]'
-                    : 'bg-[#6A85FA] shadow-[0_0_8px_#6A85FA]'
+                  isLostA
+                    ? 'bg-[#E5484D] shadow-[0_0_10px_#E5484D]'
+                    : 'bg-[#6A85FA] shadow-[0_0_10px_#6A85FA]'
                 }`}
               >
-                {isFinal && matchup.winnerRosterId && matchup.winnerRosterId !== matchup.teamA.rosterId ? (
+                {isLostA ? (
                   <span className="text-xs font-bold leading-none">✕</span>
                 ) : (
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -123,7 +147,15 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
               </div>
             )}
             <div className="flex flex-col items-center w-full">
-              <div className="relative w-12 h-12 mb-2 rounded-full overflow-hidden border-2 border-[#1C1F26] group-hover:border-[#6A85FA]/50 transition-colors bg-[#050505]">
+              <div
+                className={`relative w-12 h-12 mb-2 rounded-full overflow-hidden border-2 transition-colors bg-[#050505] ${
+                  isLostA
+                    ? 'border-[#E5484D]/50'
+                    : isPickA
+                    ? 'border-[#6A85FA]/70'
+                    : 'border-[#1C1F26] group-hover:border-[#6A85FA]/50'
+                }`}
+              >
                 <img
                   src={matchup.teamA.avatarUrl}
                   alt={matchup.teamA.teamName}
@@ -188,22 +220,24 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
             disabled={disabled || matchup.isLocked}
             onClick={() => onPickTeam(matchup.teamB.rosterId)}
             className={`group relative flex flex-col items-center justify-between p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
-              isPickB
+              isLostB
+                ? 'glow-lost bg-[#1A0E10]'
+                : isPickB
                 ? 'glow-card bg-[#141824]'
+                : (matchup.isLocked || isFinal) && selectedRosterId
+                ? 'bg-[#111317] border-[#1C1F26] opacity-40 hover:opacity-50'
                 : 'bg-[#111317] border-[#1C1F26] hover:border-[#2C3240] hover:bg-[#151820]'
-            } ${disabled || matchup.isLocked ? 'cursor-not-allowed opacity-90' : ''}`}
+            } ${disabled || matchup.isLocked ? 'cursor-not-allowed' : ''}`}
           >
             {isPickB && (
               <div
                 className={`absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-white shadow-md ${
-                  isFinal
-                    ? matchup.winnerRosterId === matchup.teamB.rosterId
-                      ? 'bg-[#22C55E] shadow-[0_0_8px_#22C55E]'
-                      : 'bg-[#EF4444] shadow-[0_0_8px_#EF4444]'
-                    : 'bg-[#6A85FA] shadow-[0_0_8px_#6A85FA]'
+                  isLostB
+                    ? 'bg-[#E5484D] shadow-[0_0_10px_#E5484D]'
+                    : 'bg-[#6A85FA] shadow-[0_0_10px_#6A85FA]'
                 }`}
               >
-                {isFinal && matchup.winnerRosterId && matchup.winnerRosterId !== matchup.teamB.rosterId ? (
+                {isLostB ? (
                   <span className="text-xs font-bold leading-none">✕</span>
                 ) : (
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -211,7 +245,15 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
               </div>
             )}
             <div className="flex flex-col items-center w-full">
-              <div className="relative w-12 h-12 mb-2 rounded-full overflow-hidden border-2 border-[#1C1F26] group-hover:border-[#6A85FA]/50 transition-colors bg-[#050505]">
+              <div
+                className={`relative w-12 h-12 mb-2 rounded-full overflow-hidden border-2 transition-colors bg-[#050505] ${
+                  isLostB
+                    ? 'border-[#E5484D]/50'
+                    : isPickB
+                    ? 'border-[#6A85FA]/70'
+                    : 'border-[#1C1F26] group-hover:border-[#6A85FA]/50'
+                }`}
+              >
                 <img
                   src={matchup.teamB.avatarUrl}
                   alt={matchup.teamB.teamName}

@@ -22,6 +22,7 @@
   --blue: #6A85FA;
   --red: #E5484D;
   --glow: 0 0 0 1px var(--blue), 0 0 26px rgba(106, 133, 250, 0.55), inset 0 0 18px rgba(106, 133, 250, 0.18);
+  --glow-lost: 0 0 0 1px var(--red), 0 0 26px rgba(229, 72, 77, 0.55), inset 0 0 18px rgba(229, 72, 77, 0.18);
   --glow-subtle: 0 0 0 1px rgba(106, 133, 250, 0.4), 0 0 16px rgba(106, 133, 250, 0.25);
 }
 
@@ -40,6 +41,11 @@ body {
 .glow-card {
   box-shadow: var(--glow) !important;
   border-color: var(--blue) !important;
+}
+
+.glow-lost {
+  box-shadow: var(--glow-lost) !important;
+  border-color: var(--red) !important;
 }
 
 .glow-subtle {
