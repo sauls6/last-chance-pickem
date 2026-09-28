@@ -21,8 +21,11 @@ export interface FantasyTeamInfo {
   record: string;
   points: number;
   projectedPoints?: number;
-  avgPoints?: number;         // Season average FPTS per completed week
-  startSitAccuracy?: number;  // fpts / ppts * 100
+  avgPoints?: number;              // Season average FPTS per completed week
+  startSitAccuracy?: number;       // fpts / ppts * 100
+  remainingStarters?: number;      // Number of active starters with games yet to play
+  initialProjectedPoints?: number; // Pre-game projected points
+  liveProjectedPoints?: number;    // Dynamic in-game projected points
 }
 
 export interface WeeklyMatchup {

@@ -112,7 +112,7 @@ returns void as $$
     and g.season = p_season
     and g.week   = p_week
     and g.status = 'final'
-    and pk.is_correct is null;
+    and (pk.is_correct is null or pk.is_correct != (pk.selected_roster_id = g.winner_roster_id));
 $$ language sql;
 
 -- ── 7. Leaderboard View ────────────────────────────────────

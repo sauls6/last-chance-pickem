@@ -64,6 +64,7 @@ interface SleeperMatchup {
   matchup_id: number;
   points: number;
   players_points?: Record<string, number>;
+  starters?: string[];
 }
 
 async function runSync() {
@@ -125,9 +126,28 @@ async function runSync() {
     console.log(`⚔️   WEEK ${w} MATCHUPS`);
     console.log(`──────────────────────────────────────────`);
 
-    const rawMatchups = await fetchJson<SleeperMatchup[]>(
-      `${BASE_API_URL}/league/${SLEEPER_LEAGUE_ID}/matchups/${w}`
-    );
+    const [rawMatchups, stats] = await Promise.all([
+      fetchJson<SleeperMatchup[]>(
+        `${BASE_API_URL}/league/${SLEEPER_LEAGUE_ID}/matchups/${w}`
+      ),
+      fetchJson<Record<string, Record<string, unknown>>>(
+        `${BASE_API_URL}/stats/nfl/regular/${state.season}/${w}`
+      ).catch(() => ({})),
+    ]);
+
+    const countRemainingStarters = (m: SleeperMatchup): number => {
+      if (!m.starters || m.starters.length === 0) return 0;
+      const statsObj = stats as Record<string, unknown>;
+      return m.starters.filter((pid: string) => {
+        if (!pid || pid === '0') return false;
+        const hasStats = Boolean(statsObj[pid]);
+        const hasPoints =
+          m.players_points &&
+          m.players_points[pid] !== undefined &&
+          m.players_points[pid] !== 0;
+        return !hasStats && !hasPoints;
+      }).length;
+    };
 
     const grouped = new Map<number, SleeperMatchup[]>();
     rawMatchups.forEach((m) => {
@@ -142,14 +162,39 @@ async function runSync() {
       return `${name} (${r?.settings.wins ?? 0}-${r?.settings.losses ?? 0})`;
     };
 
+    const kickoffAt = getThursdayKickoff(w);
+    const now = Date.now();
+    const isAfterKickoff = now >= kickoffAt.getTime();
+
+    // Finalization criteria:
+    // 1) Sleeper has advanced to a subsequent week (w < state.week)
+    // 2) Or Tuesday 10:00 UTC (6 AM ET) after kickoff has arrived
+    const tuesdayFinalAt = new Date(kickoffAt.getTime() + 5 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000);
+    const isWeekFinal = w < state.week || now >= tuesdayFinalAt.getTime();
+
     grouped.forEach((pair, mid) => {
       if (pair.length !== 2) return;
       const [a, b] = pair;
       const scoreA = a.points.toFixed(2);
       const scoreB = b.points.toFixed(2);
-      const line = `Matchup ${mid}: ${label(a)}  vs  ${label(b)}`;
-      const score = a.points > 0 || b.points > 0 ? `  [${scoreA} – ${scoreB}]` : '  [Not started]';
-      console.log(line + score);
+      const remA = countRemainingStarters(a);
+      const remB = countRemainingStarters(b);
+
+      const isMatchupOverEarly =
+        isAfterKickoff &&
+        (a.points > 0 || b.points > 0) &&
+        remA === 0 &&
+        remB === 0;
+
+      let scoreTag = '  [Not started]';
+      if (isWeekFinal || isMatchupOverEarly) {
+        const winner = a.points >= b.points ? label(a) : label(b);
+        scoreTag = `  [${scoreA} – ${scoreB}]  🏁 FINAL (Winner: ${winner})`;
+      } else if (a.points > 0 || b.points > 0) {
+        scoreTag = `  [${scoreA} – ${scoreB}]  ⚡ LIVE (${remA} left vs ${remB} left)`;
+      }
+
+      console.log(`Matchup ${mid}: ${label(a)}  vs  ${label(b)}${scoreTag}`);
     });
 
     // Tiebreaker calculation
@@ -177,23 +222,21 @@ async function runSync() {
 
     if (!sb) continue;
 
-    const kickoffAt = getThursdayKickoff(w);
-    const now = Date.now();
-    const isAfterKickoff = now >= kickoffAt.getTime();
-
-    // Finalization criteria:
-    // 1) Sleeper has advanced to a subsequent week (w < state.week)
-    // 2) Or Tuesday 10:00 UTC (6 AM ET) after kickoff has arrived
-    const tuesdayFinalAt = new Date(kickoffAt.getTime() + 5 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000);
-    const isWeekFinal = w < state.week || now >= tuesdayFinalAt.getTime();
-
     const gameRows = Array.from(grouped.entries()).flatMap(([mid, pair]) => {
       if (pair.length !== 2) return [];
       const [a, b] = pair;
       const gameId = `${state.season}_w${padWeek(w)}_m${padWeek(mid)}`;
+      const remA = countRemainingStarters(a);
+      const remB = countRemainingStarters(b);
+
+      const isMatchupOverEarly =
+        isAfterKickoff &&
+        (a.points > 0 || b.points > 0) &&
+        remA === 0 &&
+        remB === 0;
 
       let status = 'scheduled';
-      if (isWeekFinal) {
+      if (isWeekFinal || isMatchupOverEarly) {
         status = 'final';
       } else if (isAfterKickoff && (a.points > 0 || b.points > 0)) {
         status = 'in_progress';
@@ -223,15 +266,25 @@ async function runSync() {
       .from('games')
       .upsert(gameRows, { onConflict: 'id' });
 
+    const finalCount = gameRows.filter((g) => g.status === 'final').length;
+    const inProgressCount = gameRows.filter((g) => g.status === 'in_progress').length;
+    const summaryStatus = isWeekFinal
+      ? 'ALL FINAL'
+      : finalCount > 0
+      ? `${finalCount} FINAL, ${inProgressCount} LIVE`
+      : isAfterKickoff
+      ? 'IN PROGRESS'
+      : 'SCHEDULED';
+
     if (gamesError) {
       console.error(`❌  Week ${w} games upsert failed:`, gamesError.message);
     } else {
-      console.log(`✅  Week ${w}: upserted ${gameRows.length} games (status: ${isWeekFinal ? 'FINAL' : isAfterKickoff ? 'IN_PROGRESS' : 'SCHEDULED'})`);
+      console.log(`✅  Week ${w}: upserted ${gameRows.length} games (${summaryStatus})`);
     }
 
-    // Score picks & update tiebreakers if week is final
-    if (isWeekFinal && gameRows.length > 0) {
-      console.log(`🏁  Week ${w} is final — scoring picks & resolving tiebreaker…`);
+    // Score picks for any finalized matchups
+    if (finalCount > 0) {
+      console.log(`🏁  Week ${w}: scoring picks for ${finalCount} finalized matchup(s)…`);
       const { error: scoreError } = await sb.rpc('score_week_picks', {
         p_season: state.season,
         p_week:   w,
@@ -240,21 +293,23 @@ async function runSync() {
       if (scoreError) {
         console.error(`❌  Week ${w} pick scoring failed:`, scoreError.message);
       } else {
-        console.log(`✅  Week ${w}: all picks scored!`);
+        console.log(`✅  Week ${w}: picks scored for finalized matchups!`);
       }
+    }
 
-      if (maxPts > 0) {
-        const { error: tbError } = await sb
-          .from('tiebreakers')
-          .update({ actual_points: maxPts, updated_at: new Date().toISOString() })
-          .eq('season', state.season)
-          .eq('week', w);
+    // Resolve tiebreaker only when the full week is officially complete
+    if (isWeekFinal && maxPts > 0) {
+      console.log(`🎯  Week ${w} is officially complete — resolving tiebreaker…`);
+      const { error: tbError } = await sb
+        .from('tiebreakers')
+        .update({ actual_points: maxPts, updated_at: new Date().toISOString() })
+        .eq('season', state.season)
+        .eq('week', w);
 
-        if (tbError) {
-          console.warn(`⚠️  Week ${w} tiebreaker update note:`, tbError.message);
-        } else {
-          console.log(`✅  Week ${w}: tiebreaker actual points updated (${maxPts.toFixed(2)})`);
-        }
+      if (tbError) {
+        console.warn(`⚠️  Week ${w} tiebreaker update note:`, tbError.message);
+      } else {
+        console.log(`✅  Week ${w}: tiebreaker actual points updated (${maxPts.toFixed(2)})`);
       }
     }
   }

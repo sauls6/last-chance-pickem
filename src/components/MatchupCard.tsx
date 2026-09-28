@@ -104,8 +104,20 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
             } ${disabled || matchup.isLocked ? 'cursor-not-allowed opacity-90' : ''}`}
           >
             {isPickA && (
-              <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#6A85FA] flex items-center justify-center text-white shadow-[0_0_8px_#6A85FA]">
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
+              <div
+                className={`absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-white shadow-md ${
+                  isFinal
+                    ? matchup.winnerRosterId === matchup.teamA.rosterId
+                      ? 'bg-[#22C55E] shadow-[0_0_8px_#22C55E]'
+                      : 'bg-[#EF4444] shadow-[0_0_8px_#EF4444]'
+                    : 'bg-[#6A85FA] shadow-[0_0_8px_#6A85FA]'
+                }`}
+              >
+                {isFinal && matchup.winnerRosterId && matchup.winnerRosterId !== matchup.teamA.rosterId ? (
+                  <span className="text-xs font-bold leading-none">✕</span>
+                ) : (
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                )}
               </div>
             )}
             <div className="flex flex-col items-center w-full">
@@ -133,20 +145,27 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
             {/* Score / Projected Points */}
             <div className="mt-2 pt-2 border-t border-[#1C1F26] w-full">
               {(isFinal || isLive) ? (
-                <span
-                  className={`font-display text-xl ${
-                    matchup.winnerRosterId === matchup.teamA.rosterId
-                      ? 'text-[#6A85FA]'
-                      : 'text-[#9AA0A6]'
-                  }`}
-                >
-                  {matchup.teamA.points.toFixed(1)}
-                  {isLive && projA !== undefined && (
-                    <span className="text-[11px] text-[#64748B] font-sans font-normal ml-1">
-                      / {projA.toFixed(1)}
+                <>
+                  <span
+                    className={`font-display text-xl ${
+                      matchup.winnerRosterId === matchup.teamA.rosterId
+                        ? 'text-[#6A85FA]'
+                        : 'text-[#9AA0A6]'
+                    }`}
+                  >
+                    {matchup.teamA.points.toFixed(1)}
+                    {(isLive || isFinal) && projA !== undefined && (
+                      <span className="text-[11px] text-[#64748B] font-sans font-normal ml-1">
+                        / {projA.toFixed(1)}
+                      </span>
+                    )}
+                  </span>
+                  {isLive && matchup.teamA.remainingStarters !== undefined && (
+                    <span className="text-[10px] font-sans font-medium text-[#9AA0A6] block mt-0.5">
+                      {matchup.teamA.remainingStarters === 0 ? '0 left' : `${matchup.teamA.remainingStarters} left`}
                     </span>
                   )}
-                </span>
+                </>
               ) : projA !== undefined ? (
                 <span className="font-display text-base text-[#9AA0A6]">
                   Proj{' '}
@@ -173,8 +192,20 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
             } ${disabled || matchup.isLocked ? 'cursor-not-allowed opacity-90' : ''}`}
           >
             {isPickB && (
-              <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-[#6A85FA] flex items-center justify-center text-white shadow-[0_0_8px_#6A85FA]">
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
+              <div
+                className={`absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-white shadow-md ${
+                  isFinal
+                    ? matchup.winnerRosterId === matchup.teamB.rosterId
+                      ? 'bg-[#22C55E] shadow-[0_0_8px_#22C55E]'
+                      : 'bg-[#EF4444] shadow-[0_0_8px_#EF4444]'
+                    : 'bg-[#6A85FA] shadow-[0_0_8px_#6A85FA]'
+                }`}
+              >
+                {isFinal && matchup.winnerRosterId && matchup.winnerRosterId !== matchup.teamB.rosterId ? (
+                  <span className="text-xs font-bold leading-none">✕</span>
+                ) : (
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                )}
               </div>
             )}
             <div className="flex flex-col items-center w-full">
@@ -202,20 +233,27 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
             {/* Score / Projected Points */}
             <div className="mt-2 pt-2 border-t border-[#1C1F26] w-full">
               {(isFinal || isLive) ? (
-                <span
-                  className={`font-display text-xl ${
-                    matchup.winnerRosterId === matchup.teamB.rosterId
-                      ? 'text-[#6A85FA]'
-                      : 'text-[#9AA0A6]'
-                  }`}
-                >
-                  {matchup.teamB.points.toFixed(1)}
-                  {isLive && projB !== undefined && (
-                    <span className="text-[11px] text-[#64748B] font-sans font-normal ml-1">
-                      / {projB.toFixed(1)}
+                <>
+                  <span
+                    className={`font-display text-xl ${
+                      matchup.winnerRosterId === matchup.teamB.rosterId
+                        ? 'text-[#6A85FA]'
+                        : 'text-[#9AA0A6]'
+                    }`}
+                  >
+                    {matchup.teamB.points.toFixed(1)}
+                    {(isLive || isFinal) && projB !== undefined && (
+                      <span className="text-[11px] text-[#64748B] font-sans font-normal ml-1">
+                        / {projB.toFixed(1)}
+                      </span>
+                    )}
+                  </span>
+                  {isLive && matchup.teamB.remainingStarters !== undefined && (
+                    <span className="text-[10px] font-sans font-medium text-[#9AA0A6] block mt-0.5">
+                      {matchup.teamB.remainingStarters === 0 ? '0 left' : `${matchup.teamB.remainingStarters} left`}
                     </span>
                   )}
-                </span>
+                </>
               ) : projB !== undefined ? (
                 <span className="font-display text-base text-[#9AA0A6]">
                   Proj{' '}

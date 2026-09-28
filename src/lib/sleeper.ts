@@ -112,12 +112,15 @@ export async function fetchWeeklyMatchups(
   currentNflWeek: number,
   season = '2026'
 ): Promise<WeeklyMatchup[]> {
-  const [rawMatchups, users, rosters, projectionsMap] = await Promise.all([
+  const [rawMatchups, users, rosters, projectionsMap, statsMap] = await Promise.all([
     fetchWithCache<RawSleeperMatchup[]>(`league/${SLEEPER_LEAGUE_ID}/matchups/${week}`),
     fetchWithCache<RawSleeperUser[]>(`league/${SLEEPER_LEAGUE_ID}/users`),
     fetchWithCache<RawSleeperRoster[]>(`league/${SLEEPER_LEAGUE_ID}/rosters`),
     fetchWithCache<Record<string, { pts_ppr?: number }>>(
       `projections/nfl/regular/${season}/${week}`
+    ).catch(() => null),
+    fetchWithCache<Record<string, Record<string, unknown>>>(
+      `stats/nfl/regular/${season}/${week}`
     ).catch(() => null),
   ]);
 
@@ -143,15 +146,53 @@ export async function fetchWeeklyMatchups(
     const avgPoints = Math.round((fpts / completedWeeks) * 100) / 100;
     const startSitAccuracy = ppts > 0 ? Math.round((fpts / ppts) * 1000) / 10 : 100;
 
-    // Lineup projected points from Sleeper's active starters (PPR scoring)
-    let projectedPoints = avgPoints;
-    if (projectionsMap && m.starters && m.starters.length > 0) {
-      const sum = m.starters.reduce(
-        (acc, pid) => acc + (projectionsMap[pid]?.pts_ppr ?? 0),
-        0
-      );
-      if (sum > 0) projectedPoints = Math.round(sum * 10) / 10;
+    // Remaining starters with games yet to play
+    let remainingStarters: number | undefined = undefined;
+    if (m.starters && m.starters.length > 0) {
+      remainingStarters = m.starters.filter((pid) => {
+        if (!pid || pid === '0') return false;
+        const hasStats = statsMap ? Boolean(statsMap[pid]) : false;
+        const hasPoints =
+          m.players_points &&
+          m.players_points[pid] !== undefined &&
+          m.players_points[pid] !== 0;
+        return !hasStats && !hasPoints;
+      }).length;
     }
+
+    // Projections calculation:
+    // 1) initialProjectedPoints: Pre-game original projection from before kickoff
+    // 2) liveProjectedPoints: Dynamic in-game projection (actual points for finished + pregame for pending)
+    let initialProjectedPoints = avgPoints;
+    let liveProjectedPoints = avgPoints;
+
+    if (projectionsMap && m.starters && m.starters.length > 0) {
+      let initSum = 0;
+      let liveSum = 0;
+
+      m.starters.forEach((pid, idx) => {
+        if (!pid || pid === '0') return;
+        const pts = m.starters_points ? m.starters_points[idx] : 0;
+        const hasStats = statsMap ? Boolean(statsMap[pid]) : false;
+        const hasStarted = hasStats || pts > 0;
+        const pProj = projectionsMap[pid]?.pts_ppr ?? 0;
+
+        initSum += pProj;
+        liveSum += hasStarted ? pts : pProj;
+      });
+
+      if (initSum > 0) initialProjectedPoints = Math.round(initSum * 10) / 10;
+      if (liveSum > 0) liveProjectedPoints = Math.round(liveSum * 10) / 10;
+    }
+
+    // Display projection:
+    // When a team still has starters left to play, show the dynamic live projection (e.g. 122.8).
+    // Once all starters have finished, revert to the initial pre-game projection (e.g. 125.2)
+    // so managers can clearly see how their actual score compared against pre-week expectations.
+    const projectedPoints =
+      remainingStarters === 0
+        ? initialProjectedPoints
+        : (liveProjectedPoints ?? initialProjectedPoints);
 
     return {
       rosterId: m.roster_id,
@@ -162,8 +203,11 @@ export async function fetchWeeklyMatchups(
       record,
       points: m.points || 0,
       projectedPoints,
+      initialProjectedPoints,
+      liveProjectedPoints,
       avgPoints,
       startSitAccuracy,
+      remainingStarters,
     };
   };
 
@@ -189,7 +233,13 @@ export async function fetchWeeklyMatchups(
     let status: 'scheduled' | 'in_progress' | 'final' = 'scheduled';
     let winnerRosterId: number | null = null;
 
-    if (week < currentNflWeek) {
+    const isMatchupOverEarly =
+      isAfterKickoff &&
+      (teamA.points > 0 || teamB.points > 0) &&
+      teamA.remainingStarters === 0 &&
+      teamB.remainingStarters === 0;
+
+    if (week < currentNflWeek || isMatchupOverEarly) {
       status = 'final';
       winnerRosterId = teamA.points >= teamB.points ? teamA.rosterId : teamB.rosterId;
     } else if (week === currentNflWeek) {
@@ -204,8 +254,8 @@ export async function fetchWeeklyMatchups(
     const isLocked = week < currentNflWeek || (week === currentNflWeek && isAfterKickoff);
 
     // Win probability matching Sleeper's calculation from projected lineup spread
-    const projA = teamA.projectedPoints ?? teamA.avgPoints ?? 100;
-    const projB = teamB.projectedPoints ?? teamB.avgPoints ?? 100;
+    const projA = teamA.liveProjectedPoints ?? teamA.projectedPoints ?? teamA.avgPoints ?? 100;
+    const projB = teamB.liveProjectedPoints ?? teamB.projectedPoints ?? teamB.avgPoints ?? 100;
     const diff = projA - projB;
     const winProbA = Math.min(95, Math.max(5, Math.round(50 + (diff / 28) * 20)));
     const winProbB = 100 - winProbA;

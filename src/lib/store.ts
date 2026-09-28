@@ -346,13 +346,15 @@ export async function fetchLeaderboard(
 
   if (supabase) {
     try {
-      const [picksRes, tbRes] = await Promise.all([
+      const [picksRes, tbRes, gamesRes] = await Promise.all([
         supabase.from('picks').select('user_id, season, week, is_correct').not('is_correct', 'is', null),
         supabase.from('tiebreakers').select('user_id, week, predicted_points, actual_points'),
+        supabase.from('games').select('week, status'),
       ]);
 
       const picksData = picksRes.data || [];
       const tbData = tbRes.data || [];
+      const gamesData = gamesRes.data || [];
 
       // Per-user statistics
       const userStats = new Map<string, { totalCorrect: number; totalPicks: number; weeklyScores: Map<number, number> }>();
@@ -372,9 +374,13 @@ export async function fetchLeaderboard(
         }
       });
 
-      // Weekly champions resolution (with tiebreaker support)
+      // Weekly champions resolution (only for weeks where all games are fully final)
       const weeklyWinsMap = new Map<string, number>();
-      const completedWeeks = Array.from(new Set(picksData.map((p: { week: number }) => p.week)));
+      const candidateWeeks = Array.from(new Set(picksData.map((p: { week: number }) => p.week)));
+      const completedWeeks = candidateWeeks.filter((wk) => {
+        const gamesForWeek = gamesData.filter((g: { week: number; status: string }) => g.week === wk);
+        return gamesForWeek.length > 0 && gamesForWeek.every((g: { status: string }) => g.status === 'final');
+      });
 
       completedWeeks.forEach((wk) => {
         let maxScore = -1;
@@ -480,12 +486,15 @@ export async function fetchWeeklyChampions(
   if (!supabase || users.length === 0) return [];
 
   try {
-    const { data: picksData, error } = await supabase
-      .from('picks')
-      .select('user_id, week, is_correct')
-      .not('is_correct', 'is', null);
+    const [picksRes, gamesRes] = await Promise.all([
+      supabase.from('picks').select('user_id, week, is_correct').not('is_correct', 'is', null),
+      supabase.from('games').select('week, status'),
+    ]);
 
-    if (error || !picksData || picksData.length === 0) return [];
+    const picksData = picksRes.data || [];
+    const gamesData = gamesRes.data || [];
+
+    if (picksData.length === 0) return [];
 
     const userMap = new Map<string, LeagueUser>();
     users.forEach((u) => userMap.set(u.userId, u));
@@ -501,7 +510,12 @@ export async function fetchWeeklyChampions(
     });
 
     const champions: WeeklyChampion[] = [];
-    const sortedWeeks = Array.from(weekScores.keys()).sort((a, b) => b - a);
+    const sortedWeeks = Array.from(weekScores.keys())
+      .filter((wk) => {
+        const gamesForWeek = gamesData.filter((g: { week: number; status: string }) => g.week === wk);
+        return gamesForWeek.length > 0 && gamesForWeek.every((g: { status: string }) => g.status === 'final');
+      })
+      .sort((a, b) => b - a);
 
     sortedWeeks.forEach((wk) => {
       const uMap = weekScores.get(wk)!;
