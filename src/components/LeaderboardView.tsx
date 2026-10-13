@@ -79,22 +79,37 @@ export const LeaderboardView: React.FC<LeaderboardViewProps> = ({
                 className="p-4 rounded-2xl bg-[#0E1013] border border-[#1C1F26] hover:border-[#6A85FA]/40 flex items-center justify-between cursor-pointer transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#6A85FA]/10 border border-[#6A85FA]/40 flex items-center justify-center text-[#6A85FA]">
+                  <div className="w-10 h-10 rounded-full bg-[#6A85FA]/10 border border-[#6A85FA]/40 flex items-center justify-center text-[#6A85FA] flex-shrink-0">
                     <Crown className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-[11px] font-bold text-[#6A85FA] uppercase tracking-wider">
-                      Week {c.week} Champion
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-[#6A85FA] uppercase tracking-wider">
+                        Week {c.week} Champion
+                      </span>
+                      {c.tiebreaker && c.tiebreaker.tiedCount > 1 && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-wide">
+                          via tiebreaker
+                        </span>
+                      )}
+                    </div>
                     <h4 className="font-bold text-sm text-[#F2F2E8]">
                       {c.winnerUser.displayName} ({c.winnerUser.teamName})
                     </h4>
                     <p className="text-xs text-[#9AA0A6]">
                       {c.correct} of {c.total} correct picks
+                      {c.tiebreaker && (
+                        <span className="ml-2 text-[#6A85FA]/70">
+                          · guessed {c.tiebreaker.predicted.toFixed(1)} pts
+                          {typeof c.tiebreaker.actual === 'number' && (
+                            <> / actual {c.tiebreaker.actual.toFixed(1)} pts</>
+                          )}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex-shrink-0 ml-2">
                   <span className="font-display text-2xl text-[#6A85FA]">
                     {c.correct}-{c.total - c.correct}
                   </span>

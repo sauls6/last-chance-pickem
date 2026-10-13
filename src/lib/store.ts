@@ -331,6 +331,13 @@ export interface WeeklyChampion {
   correct: number;
   total: number;
   winPct: number;
+  /** Set when the week was resolved by tiebreaker; shows the champion's predicted vs actual */
+  tiebreaker?: {
+    predicted: number;
+    actual: number;
+    /** Number of managers who tied at the same correct count */
+    tiedCount: number;
+  };
 }
 
 /**
@@ -346,14 +353,12 @@ export async function fetchLeaderboard(
 
   if (supabase) {
     try {
-      const [picksRes, tbRes, gamesRes] = await Promise.all([
+      const [picksRes, gamesRes] = await Promise.all([
         supabase.from('picks').select('user_id, season, week, is_correct').not('is_correct', 'is', null),
-        supabase.from('tiebreakers').select('user_id, week, predicted_points, actual_points'),
         supabase.from('games').select('week, status'),
       ]);
 
       const picksData = picksRes.data || [];
-      const tbData = tbRes.data || [];
       const gamesData = gamesRes.data || [];
 
       // Per-user statistics
@@ -397,29 +402,12 @@ export async function fetchLeaderboard(
           }
         });
 
-        if (maxScore > 0 && topUsers.length > 0) {
-          if (topUsers.length === 1) {
-            weeklyWinsMap.set(topUsers[0], (weeklyWinsMap.get(topUsers[0]) ?? 0) + 1);
-          } else {
-            // Tiebreaker: closest to actual_points
-            let bestDiff = Infinity;
-            let tbWinner = topUsers[0];
-
-            topUsers.forEach((uid) => {
-              const tb = tbData.find((t: { user_id: string; week: number; predicted_points: number; actual_points?: number }) =>
-                t.user_id === uid && t.week === wk && t.actual_points !== null && t.actual_points !== undefined
-              );
-              if (tb && typeof tb.actual_points === 'number') {
-                const diff = Math.abs(tb.predicted_points - tb.actual_points);
-                if (diff < bestDiff) {
-                  bestDiff = diff;
-                  tbWinner = uid;
-                }
-              }
-            });
-
-            weeklyWinsMap.set(tbWinner, (weeklyWinsMap.get(tbWinner) ?? 0) + 1);
-          }
+        // Every user tied at the top gets a weekly win — the tiebreaker only decides
+        // the champion *crown* shown in the Weekly Champions tab, not this count.
+        if (maxScore > 0) {
+          topUsers.forEach((uid) => {
+            weeklyWinsMap.set(uid, (weeklyWinsMap.get(uid) ?? 0) + 1);
+          });
         }
       });
 
@@ -445,18 +433,25 @@ export async function fetchLeaderboard(
         };
       });
 
-      // Sort: totalCorrect DESC, winPct DESC, rosterId ASC
+      // Sort: totalCorrect DESC → weeklyWins DESC → totalPicks DESC → rosterId ASC
+      // winPct intentionally NOT used: a manager who submitted all 6 games and got 3 right
+      // should rank equal to — not below — one who only submitted 3 and got all 3.
       entries.sort((a, b) => {
         if (b.totalCorrect !== a.totalCorrect) return b.totalCorrect - a.totalCorrect;
-        if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+        if (b.weeklyWins !== a.weeklyWins) return b.weeklyWins - a.weeklyWins;
+        if (b.totalPicks !== a.totalPicks) return b.totalPicks - a.totalPicks;
         return a.rosterId - b.rosterId;
       });
 
-      // Assign ranks (handle ties)
+      // Assign ranks — two entries share a rank only when all three primary fields match
       entries.forEach((entry, idx) => {
         if (idx > 0) {
           const prev = entries[idx - 1];
-          if (entry.totalCorrect === prev.totalCorrect && entry.winPct === prev.winPct) {
+          if (
+            entry.totalCorrect === prev.totalCorrect &&
+            entry.weeklyWins === prev.weeklyWins &&
+            entry.totalPicks === prev.totalPicks
+          ) {
             entry.rank = prev.rank;
           } else {
             entry.rank = idx + 1;
@@ -486,13 +481,15 @@ export async function fetchWeeklyChampions(
   if (!supabase || users.length === 0) return [];
 
   try {
-    const [picksRes, gamesRes] = await Promise.all([
+    const [picksRes, gamesRes, tbRes] = await Promise.all([
       supabase.from('picks').select('user_id, week, is_correct').not('is_correct', 'is', null),
       supabase.from('games').select('week, status'),
+      supabase.from('tiebreakers').select('user_id, week, predicted_points, actual_points'),
     ]);
 
     const picksData = picksRes.data || [];
     const gamesData = gamesRes.data || [];
+    const tbData: { user_id: string; week: number; predicted_points: number; actual_points?: number | null }[] = tbRes.data || [];
 
     if (picksData.length === 0) return [];
 
@@ -519,29 +516,83 @@ export async function fetchWeeklyChampions(
 
     sortedWeeks.forEach((wk) => {
       const uMap = weekScores.get(wk)!;
+
+      // Gather all tied top users
       let maxCorrect = -1;
-      let topUserId: string | null = null;
-      let topTotal = 6;
+      const topUsers: { uid: string; total: number }[] = [];
 
       uMap.forEach((stat, uid) => {
         if (stat.correct > maxCorrect) {
           maxCorrect = stat.correct;
-          topUserId = uid;
-          topTotal = stat.total;
+          topUsers.length = 0;
+          topUsers.push({ uid, total: stat.total });
+        } else if (stat.correct === maxCorrect) {
+          topUsers.push({ uid, total: stat.total });
         }
       });
 
-      if (topUserId && maxCorrect >= 0) {
-        const user = userMap.get(topUserId);
-        if (user) {
-          champions.push({
-            week: wk,
-            winnerUser: user,
-            correct: maxCorrect,
-            total: topTotal,
-            winPct: topTotal > 0 ? Math.round((maxCorrect / topTotal) * 1000) / 10 : 0,
-          });
+      if (maxCorrect < 0 || topUsers.length === 0) return;
+
+      let championUid = topUsers[0].uid;
+      let championTotal = topUsers[0].total;
+      let tbInfo: WeeklyChampion['tiebreaker'] | undefined;
+
+      if (topUsers.length > 1) {
+        // Multiple managers tied — use tiebreaker (closest predicted_points to actual_points)
+        let bestDiff = Infinity;
+        let tbPredicted = 0;
+        let tbActual = 0;
+
+        topUsers.forEach(({ uid, total }) => {
+          const tb = tbData.find(
+            (t) => t.user_id === uid && t.week === wk &&
+                   t.actual_points !== null && t.actual_points !== undefined
+          );
+          if (tb && typeof tb.actual_points === 'number') {
+            const diff = Math.abs(tb.predicted_points - tb.actual_points);
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              championUid = uid;
+              championTotal = total;
+              tbPredicted = tb.predicted_points;
+              tbActual = tb.actual_points;
+            }
+          }
+        });
+
+        // Only attach tiebreaker info when we actually resolved via tiebreaker data
+        if (bestDiff < Infinity) {
+          tbInfo = {
+            predicted: tbPredicted,
+            actual: tbActual,
+            tiedCount: topUsers.length,
+          };
         }
+      } else {
+        // Single winner — still show their tiebreaker if submitted (informational)
+        const tb = tbData.find(
+          (t) => t.user_id === championUid && t.week === wk &&
+                 t.actual_points !== null && t.actual_points !== undefined
+        );
+        if (tb && typeof tb.actual_points === 'number') {
+          tbInfo = {
+            predicted: tb.predicted_points,
+            actual: tb.actual_points,
+            tiedCount: 1,
+          };
+        }
+      }
+
+      const user = userMap.get(championUid);
+      if (user) {
+        champions.push({
+          week: wk,
+          winnerUser: user,
+          correct: maxCorrect,
+          total: championTotal,
+          winPct: championTotal > 0 ? Math.round((maxCorrect / championTotal) * 1000) / 10 : 0,
+          tiebreaker: tbInfo,
+        });
       }
     });
 
