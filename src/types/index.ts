@@ -24,6 +24,7 @@ export interface FantasyTeamInfo {
   avgPoints?: number;              // Season average FPTS per completed week
   startSitAccuracy?: number;       // fpts / ppts * 100
   remainingStarters?: number;      // Number of active starters with games yet to play
+  byeStarters?: number;            // Number of starters on bye this week (no projection, no points)
   initialProjectedPoints?: number; // Pre-game projected points
   liveProjectedPoints?: number;    // Dynamic in-game projected points
 }

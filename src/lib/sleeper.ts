@@ -148,16 +148,27 @@ export async function fetchWeeklyMatchups(
 
     // Remaining starters with games yet to play
     let remainingStarters: number | undefined = undefined;
+    let byeStarters: number | undefined = undefined;
+
     if (m.starters && m.starters.length > 0) {
-      remainingStarters = m.starters.filter((pid) => {
-        if (!pid || pid === '0') return false;
+      const starterStatuses = m.starters.map((pid) => {
+        if (!pid || pid === '0') return { pid, hasStats: false, hasPoints: false, hasBye: false };
         const hasStats = statsMap ? Boolean(statsMap[pid]) : false;
         const hasPoints =
           m.players_points &&
           m.players_points[pid] !== undefined &&
           m.players_points[pid] !== 0;
-        return !hasStats && !hasPoints;
-      }).length;
+        // A starter is on bye if they have no projection (pts_ppr null/missing) and haven't scored
+        const projEntry = projectionsMap ? projectionsMap[pid] : null;
+        const hasProjPoints = projEntry != null && projEntry.pts_ppr != null;
+        const hasBye = !hasStats && !hasPoints && !hasProjPoints;
+        return { pid, hasStats, hasPoints, hasBye };
+      });
+
+      remainingStarters = starterStatuses.filter(
+        (s) => !s.hasStats && !s.hasPoints && !s.hasBye
+      ).length;
+      byeStarters = starterStatuses.filter((s) => s.hasBye).length;
     }
 
     // Projections calculation:
@@ -208,6 +219,7 @@ export async function fetchWeeklyMatchups(
       avgPoints,
       startSitAccuracy,
       remainingStarters,
+      byeStarters,
     };
   };
 

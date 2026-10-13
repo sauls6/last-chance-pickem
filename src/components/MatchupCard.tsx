@@ -369,7 +369,7 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
       {/* ── Inline Accordion Tray ──────────────────────────────── */}
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          previewOpen ? 'max-h-96' : 'max-h-0'
+          previewOpen ? 'max-h-[520px]' : 'max-h-0'
         }`}
       >
         <div className="px-3 pb-4 pt-1 bg-[#0A0C0F] border-t border-[#1C1F26]">
@@ -416,6 +416,44 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
             valA={matchup.teamA.startSitAccuracy !== undefined ? `${matchup.teamA.startSitAccuracy.toFixed(1)}%` : '—'}
             valB={matchup.teamB.startSitAccuracy !== undefined ? `${matchup.teamB.startSitAccuracy.toFixed(1)}%` : '—'}
           />
+
+          {/* Bye week starters — only shown when at least one team has players on bye */}
+          {((matchup.teamA.byeStarters ?? 0) > 0 || (matchup.teamB.byeStarters ?? 0) > 0) && (
+            <div className="mt-3 pt-2.5 border-t border-[#1C1F26]">
+              <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider text-center mb-2">
+                Bye Week Impact
+              </p>
+              <div className="flex items-center gap-2">
+                {/* Team A bye count */}
+                <div className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold ${
+                  (matchup.teamA.byeStarters ?? 0) > 0
+                    ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                    : 'bg-[#111317] border border-[#1C1F26] text-[#3A404F]'
+                }`}>
+                  <span>{(matchup.teamA.byeStarters ?? 0) > 0 ? '🌙' : '—'}</span>
+                  <span>
+                    {(matchup.teamA.byeStarters ?? 0) > 0
+                      ? `${matchup.teamA.byeStarters} on bye`
+                      : 'No byes'}
+                  </span>
+                </div>
+                <span className="text-[#2A2F3D] text-xs font-bold">vs</span>
+                {/* Team B bye count */}
+                <div className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold ${
+                  (matchup.teamB.byeStarters ?? 0) > 0
+                    ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                    : 'bg-[#111317] border border-[#1C1F26] text-[#3A404F]'
+                }`}>
+                  <span>{(matchup.teamB.byeStarters ?? 0) > 0 ? '🌙' : '—'}</span>
+                  <span>
+                    {(matchup.teamB.byeStarters ?? 0) > 0
+                      ? `${matchup.teamB.byeStarters} on bye`
+                      : 'No byes'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Open in Sleeper link — only shown for the active current week */}
           {isCurrentWeek && (
