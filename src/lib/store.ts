@@ -353,12 +353,14 @@ export async function fetchLeaderboard(
 
   if (supabase) {
     try {
-      const [picksRes, gamesRes] = await Promise.all([
+      const [picksRes, tbRes, gamesRes] = await Promise.all([
         supabase.from('picks').select('user_id, season, week, is_correct').not('is_correct', 'is', null),
+        supabase.from('tiebreakers').select('user_id, week, predicted_points, actual_points'),
         supabase.from('games').select('week, status'),
       ]);
 
       const picksData = picksRes.data || [];
+      const tbData: { user_id: string; week: number; predicted_points: number; actual_points?: number | null }[] = tbRes.data || [];
       const gamesData = gamesRes.data || [];
 
       // Per-user statistics
@@ -402,12 +404,32 @@ export async function fetchLeaderboard(
           }
         });
 
-        // Every user tied at the top gets a weekly win — the tiebreaker only decides
-        // the champion *crown* shown in the Weekly Champions tab, not this count.
-        if (maxScore > 0) {
-          topUsers.forEach((uid) => {
-            weeklyWinsMap.set(uid, (weeklyWinsMap.get(uid) ?? 0) + 1);
-          });
+        if (maxScore > 0 && topUsers.length > 0) {
+          if (topUsers.length === 1) {
+            // Clear winner — no tiebreaker needed
+            weeklyWinsMap.set(topUsers[0], (weeklyWinsMap.get(topUsers[0]) ?? 0) + 1);
+          } else {
+            // Multiple managers tied — resolve via tiebreaker (closest predicted to actual).
+            // Only ONE person gets the weekly win; rosterId is the last resort if no TB data.
+            let bestDiff = Infinity;
+            let tbWinner = topUsers[0];
+
+            topUsers.forEach((uid) => {
+              const tb = tbData.find(
+                (t) => t.user_id === uid && t.week === wk &&
+                       t.actual_points !== null && t.actual_points !== undefined
+              );
+              if (tb && typeof tb.actual_points === 'number') {
+                const diff = Math.abs(tb.predicted_points - tb.actual_points);
+                if (diff < bestDiff) {
+                  bestDiff = diff;
+                  tbWinner = uid;
+                }
+              }
+            });
+
+            weeklyWinsMap.set(tbWinner, (weeklyWinsMap.get(tbWinner) ?? 0) + 1);
+          }
         }
       });
 
