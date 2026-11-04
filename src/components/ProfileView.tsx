@@ -1,6 +1,24 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import type { LeagueUser, UserProfileStats } from '../types';
 import { Award, LogOut, Swords, Target, ThumbsUp, Zap } from 'lucide-react';
+import confetti from 'canvas-confetti';
+
+export function fireGoldConfetti() {
+  confetti({
+    particleCount: 55,
+    angle: 60,
+    spread: 65,
+    origin: { x: 0.15, y: 0.7 },
+    colors: ['#FEF08A', '#FACC15', '#EAB308', '#CA8A04', '#FFFBEB'],
+  });
+  confetti({
+    particleCount: 55,
+    angle: 120,
+    spread: 65,
+    origin: { x: 0.85, y: 0.7 },
+    colors: ['#FEF08A', '#FACC15', '#EAB308', '#CA8A04', '#FFFBEB'],
+  });
+}
 
 interface ProfileViewProps {
   user: LeagueUser;
@@ -10,9 +28,23 @@ interface ProfileViewProps {
 }
 
 // Badge SVGs adapted from the reference site's shield geometry & electric blue aesthetic
-const BadgeIcon: React.FC<{ id: string; earned: boolean }> = ({ id, earned }) => {
-  const strokeColor = earned ? '#6A85FA' : '#4A5060';
-  const fillColor = earned ? '#0E1013' : '#0B0D10';
+// (with a special Golden Crown Jewel variant for Perfect Week)
+const BadgeIcon: React.FC<{ id: string; earned: boolean; onClick?: () => void }> = ({ id, earned, onClick }) => {
+  const isGoldenBadge = id === 'perfect_week';
+  const strokeColor = isGoldenBadge
+    ? earned
+      ? '#FACC15'
+      : '#A16207'
+    : earned
+    ? '#6A85FA'
+    : '#4A5060';
+  const fillColor = isGoldenBadge
+    ? earned
+      ? '#1A1405'
+      : '#110E07'
+    : earned
+    ? '#0E1013'
+    : '#0B0D10';
 
   const renderBadgeContent = () => {
     switch (id) {
@@ -34,9 +66,37 @@ const BadgeIcon: React.FC<{ id: string; earned: boolean }> = ({ id, earned }) =>
       case 'perfect_week':
         return (
           <>
-            <text x="40" y="45" textAnchor="middle" fontFamily="Anton, Impact, sans-serif" fontSize="22" fill={earned ? '#F2F2E8' : '#64748B'}>6</text>
-            <text x="40" y="58" textAnchor="middle" fontFamily="Barlow, sans-serif" fontWeight="700" fontSize="9" fill={strokeColor}>OF 6</text>
-            <path d="M40 14l2.5 5 5.5 0.8-4 3.9 1 5.3-5-2.6-5 2.6 1-5.3-4-3.9 5.5-0.8z" fill={strokeColor} />
+            <text
+              x="40"
+              y="45"
+              textAnchor="middle"
+              fontFamily="Anton, Impact, sans-serif"
+              fontSize="22"
+              fill={earned ? '#FFFBEB' : '#A16207'}
+            >
+              6
+            </text>
+            <text
+              x="40"
+              y="58"
+              textAnchor="middle"
+              fontFamily="Barlow, sans-serif"
+              fontWeight="700"
+              fontSize="9"
+              fill={earned ? '#FDE047' : '#854D0E'}
+            >
+              OF 6
+            </text>
+            <path
+              d="M40 14l2.5 5 5.5 0.8-4 3.9 1 5.3-5-2.6-5 2.6 1-5.3-4-3.9 5.5-0.8z"
+              fill={earned ? '#FACC15' : '#A16207'}
+            />
+            {earned && (
+              <>
+                <circle cx="24" cy="27" r="1.5" fill="#FEF08A" />
+                <circle cx="56" cy="27" r="1.5" fill="#FEF08A" />
+              </>
+            )}
           </>
         );
       case 'top_dog':
@@ -78,15 +138,46 @@ const BadgeIcon: React.FC<{ id: string; earned: boolean }> = ({ id, earned }) =>
     }
   };
 
+  const containerClasses = isGoldenBadge
+    ? earned
+      ? 'glow-gold bg-gradient-to-b from-[#261E07] via-[#171204] to-[#0E1013] border-amber-400 cursor-pointer hover:scale-105'
+      : 'bg-[#120F08] border-amber-500/25 opacity-55'
+    : earned
+    ? 'bg-[#10131B] border-[#6A85FA]/40 shadow-[0_0_15px_rgba(106,133,250,0.15)]'
+    : 'bg-[#0B0D10] border-[#1C1F26] opacity-40 grayscale';
+
   return (
-    <div className={`relative flex flex-col items-center p-3 rounded-2xl border transition-all ${
-      earned ? 'bg-[#10131B] border-[#6A85FA]/40 shadow-[0_0_15px_rgba(106,133,250,0.15)]' : 'bg-[#0B0D10] border-[#1C1F26] opacity-40 grayscale'
-    }`}>
+    <div
+      onClick={onClick}
+      title={isGoldenBadge && earned ? 'Click to celebrate Perfect Week!' : undefined}
+      className={`relative flex flex-col items-center p-3 rounded-2xl border transition-all duration-300 ${containerClasses}`}
+    >
+      {isGoldenBadge && (
+        <span
+          className={`absolute -top-1.5 -right-1.5 text-[10px] px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider border ${
+            earned
+              ? 'bg-amber-400 text-[#0E1013] border-yellow-200 shadow-[0_0_10px_rgba(250,204,21,0.8)]'
+              : 'bg-[#1A1407] text-amber-500/70 border-amber-500/30'
+          }`}
+        >
+          ★
+        </span>
+      )}
       <svg viewBox="0 0 80 80" className="w-14 h-14 mb-2 drop-shadow-sm">
         <defs>
           <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={earned ? '#8FA3FF' : '#3A4050'} />
-            <stop offset="100%" stopColor={earned ? '#4F63D6' : '#1C2028'} />
+            {isGoldenBadge ? (
+              <>
+                <stop offset="0%" stopColor={earned ? '#FEF08A' : '#A16207'} />
+                <stop offset="50%" stopColor={earned ? '#FACC15' : '#713F12'} />
+                <stop offset="100%" stopColor={earned ? '#CA8A04' : '#422006'} />
+              </>
+            ) : (
+              <>
+                <stop offset="0%" stopColor={earned ? '#8FA3FF' : '#3A4050'} />
+                <stop offset="100%" stopColor={earned ? '#4F63D6' : '#1C2028'} />
+              </>
+            )}
           </linearGradient>
         </defs>
         {/* Shield Frame */}
@@ -109,6 +200,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onLogout,
 }) => {
   const earnedCount = stats.badges.filter((b) => b.earned).length;
+  const hasPerfectWeek = stats.badges.some((b) => b.id === 'perfect_week' && b.earned);
+
+  useEffect(() => {
+    if (hasPerfectWeek) {
+      fireGoldConfetti();
+    }
+  }, [hasPerfectWeek, user.userId]);
 
   return (
     <div className="w-full max-w-xl mx-auto px-4 pt-4 pb-28">
@@ -324,19 +422,34 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </div>
 
         <div className="grid grid-cols-4 gap-3">
-          {stats.badges.map((b) => (
-            <div key={b.id} className="flex flex-col items-center text-center">
-              <BadgeIcon id={b.id} earned={b.earned} />
-              <span className={`text-[11px] font-bold mt-1.5 leading-tight ${
-                b.earned ? 'text-[#F2F2E8]' : 'text-[#64748B]'
-              }`}>
-                {b.name}
-              </span>
-              <span className="text-[9px] text-[#64748B] leading-tight mt-0.5 line-clamp-2">
-                {b.description}
-              </span>
-            </div>
-          ))}
+          {stats.badges.map((b) => {
+            const isGold = b.id === 'perfect_week';
+            return (
+              <div key={b.id} className="flex flex-col items-center text-center">
+                <BadgeIcon
+                  id={b.id}
+                  earned={b.earned}
+                  onClick={isGold && b.earned ? fireGoldConfetti : undefined}
+                />
+                <span
+                  className={`text-[11px] font-bold mt-1.5 leading-tight ${
+                    isGold && b.earned
+                      ? 'text-amber-300 drop-shadow-[0_0_8px_rgba(250,204,21,0.45)]'
+                      : isGold
+                      ? 'text-amber-500/75'
+                      : b.earned
+                      ? 'text-[#F2F2E8]'
+                      : 'text-[#64748B]'
+                  }`}
+                >
+                  {b.name}
+                </span>
+                <span className="text-[9px] text-[#64748B] leading-tight mt-0.5 line-clamp-2">
+                  {b.description}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

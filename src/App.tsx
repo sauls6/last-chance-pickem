@@ -3,7 +3,7 @@ import { BlobNav, type ActiveTab } from './components/BlobNav';
 import { Header } from './components/Header';
 import { PicksView } from './components/PicksView';
 import { LeaderboardView } from './components/LeaderboardView';
-import { ProfileView } from './components/ProfileView';
+import { ProfileView, fireGoldConfetti } from './components/ProfileView';
 import { PinAuthModal } from './components/PinAuthModal';
 import type { LeaderboardEntry, LeagueUser, UserProfileStats, WeeklyMatchup } from './types';
 import {
@@ -40,6 +40,7 @@ export function App() {
   // Live Supabase Profile Stats State
   const [targetStats, setTargetStats] = useState<UserProfileStats | null>(null);
   const [loadingProfile, setLoadingProfile] = useState<boolean>(false);
+  const [showPerfectWeekCelebration, setShowPerfectWeekCelebration] = useState<boolean>(false);
 
   // Initialize Auth & League Users
   useEffect(() => {
@@ -155,7 +156,22 @@ export function App() {
       setLoadingProfile(true);
       try {
         const stats = await fetchProfileStats(targetUser!, targetRank, users);
-        if (!isCancelled) setTargetStats(stats);
+        if (!isCancelled) {
+          setTargetStats(stats);
+          if (
+            currentUser &&
+            targetUser!.userId === currentUser.userId &&
+            stats.badges.some((b) => b.id === 'perfect_week' && b.earned)
+          ) {
+            const seenKey = `last_chance_pickem_perfect_week_celebrated_${currentUser.userId}`;
+            if (!localStorage.getItem(seenKey)) {
+              localStorage.setItem(seenKey, '1');
+              setShowPerfectWeekCelebration(true);
+              fireGoldConfetti();
+              setTimeout(() => fireGoldConfetti(), 700);
+            }
+          }
+        }
       } catch (e) {
         console.error('Error fetching profile stats', e);
       } finally {
@@ -186,6 +202,42 @@ export function App() {
           }
         }}
       />
+
+      {showPerfectWeekCelebration && currentUser && (
+        <div className="w-full max-w-xl mx-auto px-4 pt-3">
+          <div className="glow-gold p-4 rounded-2xl bg-gradient-to-r from-[#241C06] via-[#1A1405] to-[#241C06] border border-amber-400 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">👑</span>
+              <div>
+                <h4 className="font-display text-lg text-amber-300 tracking-wide leading-tight">
+                  Perfect Week Unlocked (6-0)!
+                </h4>
+                <p className="text-xs text-amber-100/80">
+                  You called all 6 matchups right and earned the Golden Crown Jewel badge!
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => {
+                  setViewingUserId(currentUser.userId);
+                  setActiveTab('profile');
+                  setShowPerfectWeekCelebration(false);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-[#0E1013] text-xs font-bold cursor-pointer transition-colors"
+              >
+                View Badge
+              </button>
+              <button
+                onClick={() => setShowPerfectWeekCelebration(false)}
+                className="px-2 py-1 text-xs text-amber-200/70 hover:text-amber-100 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1">
         {activeTab === 'picks' && (

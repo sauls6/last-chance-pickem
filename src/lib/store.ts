@@ -639,26 +639,35 @@ export async function fetchProfileStats(
 ): Promise<UserProfileStats> {
   if (supabase) {
     try {
-      const [userPicksRes, tbRes, gamesRes, allPicksRes, champs] = await Promise.all([
+      const [userPicksRes, gamesRes, allPicksRes, champs] = await Promise.all([
         supabase.from('picks').select('*').eq('user_id', user.userId),
-        supabase.from('tiebreakers').select('*').eq('user_id', user.userId),
         supabase.from('games').select('*'),
-        supabase.from('picks').select('game_id, selected_roster_id, is_correct'),
+        supabase.from('picks').select('user_id, week, game_id, selected_roster_id, is_correct'),
         fetchWeeklyChampions(allUsers),
       ]);
 
       const userPicks = userPicksRes.data || [];
-      const userTbs = tbRes.data || [];
       const gamesData = gamesRes.data || [];
       const allPicksData = allPicksRes.data || [];
 
-      // Determine weeks where all matchups are 100% finished
+      // Determine weeks where all matchups are 100% finished, and weeks that have locked/started
       const completedWeeksSet = new Set<number>();
+      const lockedWeeksSet = new Set<number>();
+      const nowMs = Date.now();
       const candidateWeeks = Array.from(new Set(gamesData.map((g: { week: number }) => g.week)));
       candidateWeeks.forEach((wk) => {
-        const wkGames = gamesData.filter((g: { week: number; status: string }) => g.week === wk);
+        const wkGames = gamesData.filter((g: { week: number; status: string; kickoff_at?: string }) => g.week === wk);
         if (wkGames.length > 0 && wkGames.every((g: { status: string }) => g.status === 'final')) {
           completedWeeksSet.add(wk);
+        }
+        if (
+          wk >= LAUNCH_WEEK &&
+          wkGames.some((g: { status: string; kickoff_at?: string }) => {
+            const kickedOff = g.kickoff_at ? new Date(g.kickoff_at).getTime() <= nowMs : false;
+            return g.status !== 'scheduled' || kickedOff;
+          })
+        ) {
+          lockedWeeksSet.add(wk);
         }
       });
 
@@ -696,7 +705,8 @@ export async function fetchProfileStats(
 
       let upsetsCalled = 0;
       let hasHotTake = false;
-      userPicks.forEach((p: { game_id: string; selected_roster_id: number; is_correct: boolean | null }) => {
+      const upsetsByWeek = new Map<number, number>();
+      userPicks.forEach((p: { week: number; game_id: string; selected_roster_id: number; is_correct: boolean | null }) => {
         const counts = gamePicksMap.get(p.game_id);
         if (counts) {
           const userPickCount = counts[p.selected_roster_id] || 0;
@@ -705,10 +715,12 @@ export async function fetchProfileStats(
             hasHotTake = true;
             if (p.is_correct === true) {
               upsetsCalled++;
+              upsetsByWeek.set(p.week, (upsetsByWeek.get(p.week) ?? 0) + 1);
             }
           }
         }
       });
+      const hasUpsetArtist = Array.from(upsetsByWeek.values()).some((cnt) => cnt >= 3);
 
       // Most Picked Team
       const teamPickCount = new Map<number, { count: number; correct: number }>();
@@ -750,6 +762,20 @@ export async function fetchProfileStats(
         }
       });
 
+      // Check if user won both rivalry weeks (W4 and W14) once both are completed
+      const didWinRivalryWeek = (wk: number): boolean => {
+        if (!completedWeeksSet.has(wk)) return false;
+        const myScore = weekScoreMap.get(wk)?.correct ?? 0;
+        if (myScore === 0) return false;
+        if (!rivalUser) return myScore >= 4;
+        const rivalCorrect = allPicksData.filter(
+          (p: { user_id: string; week: number; is_correct: boolean | null }) =>
+            p.user_id === rivalUser.userId && p.week === wk && p.is_correct === true
+        ).length;
+        return myScore > rivalCorrect;
+      };
+      const wonBothRivalryWeeks = didWinRivalryWeek(4) && didWinRivalryWeek(14);
+
       // Weekly History (W3–W14)
       const weeklyHistory: UserProfileStats['weeklyHistory'] = [];
       for (let w = LAUNCH_WEEK; w <= SEASON_LAST_WEEK; w++) {
@@ -762,29 +788,32 @@ export async function fetchProfileStats(
         });
       }
 
-      // Dynamic Badges
-      const hasPickedAtLeastOne = userPicks.length > 0;
+      // Dynamic Badges (recalculated live on every fetch; revoked if condition stops being met)
+      const userPickedWeeksSet = new Set<number>(userPicks.map((p: { week: number }) => p.week));
+      const hasPickedAtLeastOne = userPickedWeeksSet.size > 0;
+      const isIronman =
+        hasPickedAtLeastOne &&
+        (lockedWeeksSet.size === 0 ||
+          Array.from(lockedWeeksSet).every((wk) => userPickedWeeksSet.has(wk)));
       const perfectWeek = Array.from(completedWeeksSet).some((wk) => {
         const ws = weekScoreMap.get(wk);
         return ws && ws.total === 6 && ws.correct === 6;
       });
       const wonWeeklyChampion = champs.some((c) => c.winnerUser.userId === user.userId);
-      const wonTiebreaker = champs.some((c) =>
-        c.winnerUser.userId === user.userId &&
-        userTbs.some((tb: { week: number; actual_points?: number | null }) =>
-          tb.week === c.week && tb.actual_points !== null && tb.actual_points !== undefined
-        )
+      const wonTiebreaker = champs.some(
+        (c) => c.winnerUser.userId === user.userId && (c.tiebreaker?.tiedCount ?? 0) > 1
       );
 
+      // Ordered from easiest to hardest (with Perfect Week as the ultimate golden crown jewel)
       const ALL_BADGES: { id: string; name: string; description: string; earned: boolean }[] = [
         { id: 'first_down',   name: 'First Down',   description: 'Submitted picks for a week', earned: hasPickedAtLeastOne },
-        { id: 'ironman',      name: 'Ironman',       description: 'Never missed a week',        earned: hasPickedAtLeastOne },
-        { id: 'perfect_week', name: 'Perfect Week',  description: 'All 6 picks correct',       earned: perfectWeek },
-        { id: 'top_dog',      name: 'Top Dog',       description: 'Won a weekly leaderboard',   earned: wonWeeklyChampion },
-        { id: 'clutch',       name: 'Clutch',        description: 'Won a tiebreaker',          earned: wonTiebreaker },
-        { id: 'upset_artist', name: 'Upset Artist',  description: '3 upsets called in a week', earned: upsetsCalled >= 3 },
-        { id: 'rival_slayer', name: 'Rival Slayer',  description: 'Won both rivalry weeks',    earned: rivalWins === 2 && completedWeeksSet.has(4) && completedWeeksSet.has(14) },
-        { id: 'hot_take',     name: 'Hot Take',      description: 'Picked against majority',   earned: hasHotTake },
+        { id: 'hot_take',     name: 'Hot Take',     description: 'Picked against majority',    earned: hasHotTake },
+        { id: 'top_dog',      name: 'Top Dog',      description: 'Won a weekly leaderboard',   earned: wonWeeklyChampion },
+        { id: 'clutch',       name: 'Clutch',       description: 'Won a tiebreaker',           earned: wonTiebreaker },
+        { id: 'ironman',      name: 'Ironman',      description: 'Never missed a week',        earned: isIronman },
+        { id: 'upset_artist', name: 'Upset Artist', description: '3 upsets called in a week',  earned: hasUpsetArtist },
+        { id: 'rival_slayer', name: 'Rival Slayer', description: 'Won both rivalry weeks',     earned: wonBothRivalryWeeks },
+        { id: 'perfect_week', name: 'Perfect Week', description: 'All 6 picks correct',        earned: perfectWeek },
       ];
 
       return {
@@ -864,13 +893,13 @@ export function computeProfileStats(
 
   const ALL_BADGES: { id: string; name: string; description: string; earned: boolean }[] = [
     { id: 'first_down',   name: 'First Down',   description: 'Submitted picks for a week', earned: false },
-    { id: 'ironman',      name: 'Ironman',       description: 'Never missed a week',        earned: false },
-    { id: 'perfect_week', name: 'Perfect Week',  description: 'All 6 picks correct',       earned: false },
-    { id: 'top_dog',      name: 'Top Dog',       description: 'Won a weekly leaderboard',   earned: false },
-    { id: 'clutch',       name: 'Clutch',        description: 'Won a tiebreaker',          earned: false },
-    { id: 'upset_artist', name: 'Upset Artist',  description: '3 upsets called in a week', earned: false },
-    { id: 'rival_slayer', name: 'Rival Slayer',  description: 'Won both rivalry weeks',    earned: false },
-    { id: 'hot_take',     name: 'Hot Take',      description: 'Picked against majority',   earned: false },
+    { id: 'hot_take',     name: 'Hot Take',     description: 'Picked against majority',    earned: false },
+    { id: 'top_dog',      name: 'Top Dog',      description: 'Won a weekly leaderboard',   earned: false },
+    { id: 'clutch',       name: 'Clutch',       description: 'Won a tiebreaker',           earned: false },
+    { id: 'ironman',      name: 'Ironman',      description: 'Never missed a week',        earned: false },
+    { id: 'upset_artist', name: 'Upset Artist', description: '3 upsets called in a week',  earned: false },
+    { id: 'rival_slayer', name: 'Rival Slayer', description: 'Won both rivalry weeks',     earned: false },
+    { id: 'perfect_week', name: 'Perfect Week', description: 'All 6 picks correct',        earned: false },
   ];
 
   return {

@@ -52,6 +52,20 @@ body {
   box-shadow: var(--glow-subtle) !important;
 }
 
+@keyframes goldPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.75), 0 0 22px rgba(250, 204, 21, 0.35), inset 0 0 16px rgba(250, 204, 21, 0.16);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(254, 240, 138, 0.95), 0 0 32px rgba(250, 204, 21, 0.6), inset 0 0 22px rgba(250, 204, 21, 0.28);
+  }
+}
+
+.glow-gold {
+  animation: goldPulse 2.8s ease-in-out infinite;
+  border-color: #FACC15 !important;
+}
+
 /* ── Global dark scrollbar ─────────────────────────────────
    Webkit (Chrome, Edge, Safari): custom dark scrollbar
    Firefox: scrollbar-width + scrollbar-color                */
