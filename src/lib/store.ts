@@ -134,6 +134,7 @@ export async function getPicksForWeek(
         .from('picks')
         .select('game_id, selected_roster_id')
         .eq('user_id', userId)
+        .eq('week', week)
         .in('game_id', matchupGameIds);
 
       if (!error && data) {
@@ -173,15 +174,20 @@ export async function savePicksForWeek(
 ): Promise<void> {
   if (Object.keys(picksMap).length === 0) return;
 
-  const pickEntries: UserPick[] = Object.entries(picksMap).map(([gameId, selectedRosterId]) => {
-    const matchup = matchups.find((m) => m.id === gameId);
-    return {
+  // Strictly filter to matchups belonging to the target week so stale keys from
+  // another week can never leak into this week's save payload or overwrite week numbers.
+  const pickEntries: UserPick[] = Object.entries(picksMap).flatMap(([gameId, selectedRosterId]) => {
+    const matchup = matchups.find((m) => m.id === gameId && m.week === week);
+    if (!matchup) return [];
+    return [{
       gameId,
-      matchupId: matchup ? matchup.matchupId : 0,
-      week,
+      matchupId: matchup.matchupId,
+      week: matchup.week,
       selectedRosterId,
-    };
+    }];
   });
+
+  if (pickEntries.length === 0) return;
 
   if (supabase) {
     try {
@@ -189,7 +195,7 @@ export async function savePicksForWeek(
         user_id:            userId,
         game_id:            p.gameId,
         season:             '2026',
-        week:               week,
+        week:               p.week,
         selected_roster_id: p.selectedRosterId,
       }));
       const { error } = await supabase.from('picks').upsert(rows, { onConflict: 'user_id,game_id' });

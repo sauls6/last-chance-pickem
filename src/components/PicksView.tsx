@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { LeagueUser, WeeklyMatchup } from '../types';
 import { MatchupCard } from './MatchupCard';
 import { WeekRail } from './WeekRail';
@@ -36,29 +36,37 @@ export const PicksView: React.FC<PicksViewProps> = ({
   // Stable game IDs string to use as dep (avoids array ref instability)
   const matchupIds = matchups.map((m) => m.id).join(',');
 
-  const loadData = useCallback(async () => {
-    if (!currentUser || matchups.length === 0) return;
-    const gameIds = matchups.map((m) => m.id);
-    const [savedPicks, tb, sp] = await Promise.all([
-      getPicksForWeek(currentUser.userId, selectedWeek, gameIds),
-      getTiebreaker(currentUser.userId, selectedWeek),
-      getGameSplits(selectedWeek, matchups),
-    ]);
-    setPicks(savedPicks);
-    setTiebreakerState(tb !== null ? tb.toString() : '');
-    setSplits(sp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.userId, selectedWeek, matchupIds]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Reset picks display when switching weeks
+  // Reset picks display immediately when switching weeks
   useEffect(() => {
     setPicks({});
     setTiebreakerState('');
   }, [selectedWeek]);
+
+  // Load saved picks, tiebreaker, and splits only when matchups match selectedWeek
+  useEffect(() => {
+    if (!currentUser || matchups.length === 0 || matchups[0].week !== selectedWeek) return;
+
+    let isCancelled = false;
+    const gameIds = matchups.map((m) => m.id);
+
+    async function loadData() {
+      const [savedPicks, tb, sp] = await Promise.all([
+        getPicksForWeek(currentUser!.userId, selectedWeek, gameIds),
+        getTiebreaker(currentUser!.userId, selectedWeek),
+        getGameSplits(selectedWeek, matchups),
+      ]);
+      if (isCancelled) return;
+      setPicks(savedPicks);
+      setTiebreakerState(tb !== null ? tb.toString() : '');
+      setSplits(sp);
+    }
+
+    loadData();
+    return () => {
+      isCancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.userId, selectedWeek, matchupIds]);
 
   const showToast = (msg: string, isError = false) => {
     setToastMessage(msg);
@@ -107,7 +115,7 @@ export const PicksView: React.FC<PicksViewProps> = ({
   };
 
   const totalMatchups = matchups.length;
-  const pickedCount = Object.keys(picks).length;
+  const pickedCount = matchups.filter((m) => picks[m.id] !== undefined).length;
   const isWeekOpen = selectedWeek === currentNflWeek;
   // The current week is locked once Thursday kickoff has passed (matchups[0].isLocked reflects this)
   const isCurrentWeekLocked = matchups.length > 0 && matchups[0].isLocked;
