@@ -204,7 +204,10 @@ export function formatKickoffLabel(kickoffIso: string): string {
   const date = new Date(kickoffIso);
   if (Number.isNaN(date.getTime())) return 'Kickoff TBD';
 
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Monterrey';
+
   return new Intl.DateTimeFormat('en-US', {
+    timeZone,
     weekday: 'short',
     month: 'short',
     day: 'numeric',
