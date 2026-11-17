@@ -37,7 +37,7 @@ export interface WeeklyMatchup {
   teamB: FantasyTeamInfo;
   status: 'scheduled' | 'in_progress' | 'final';
   winnerRosterId: number | null;
-  kickoffAt: string; // ISO string for Thursday 8:15 PM ET
+  kickoffAt: string; // Authoritative ISO-8601 UTC timestamp of the week's earliest NFL kickoff
   isLocked: boolean;
   winProbabilityA?: number; // 0–100
   winProbabilityB?: number; // 0–100

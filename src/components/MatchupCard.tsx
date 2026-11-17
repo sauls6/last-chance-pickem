@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { WeeklyMatchup } from '../types';
+import { formatKickoffLabel } from '../lib/schedule';
 import { Check, ChevronDown, ExternalLink } from 'lucide-react';
 
 const SLEEPER_LEAGUE_ID = '1390903684027670528';
@@ -13,6 +14,7 @@ interface MatchupCardProps {
   disabled?: boolean;
   currentUserRosterId?: number;
   isCurrentWeek?: boolean;
+  isLocked?: boolean;
 }
 
 function StatCompare({
@@ -44,9 +46,11 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
   disabled = false,
   currentUserRosterId,
   isCurrentWeek = false,
+  isLocked: isLockedProp,
 }) => {
   const [previewOpen, setPreviewOpen] = useState(false);
 
+  const isLocked = isLockedProp ?? matchup.isLocked;
   const isFinal = matchup.status === 'final';
   const isLive = matchup.status === 'in_progress';
   const isPickA = selectedRosterId === matchup.teamA.rosterId;
@@ -108,7 +112,7 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
             )}
             {!isLive && !isFinal && (
               <span className="text-[#9AA0A6]">
-                {matchup.isLocked ? '🔒 Locked' : 'Thursday 8:15 PM ET'}
+                {isLocked ? '🔒 Locked' : formatKickoffLabel(matchup.kickoffAt)}
               </span>
             )}
           </div>
@@ -119,17 +123,17 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
           {/* Team A */}
           <button
             type="button"
-            disabled={disabled || matchup.isLocked}
+            disabled={disabled || isLocked}
             onClick={() => onPickTeam(matchup.teamA.rosterId)}
             className={`group relative flex flex-col items-center justify-between p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
               isLostA
                 ? 'glow-lost bg-[#1A0E10]'
                 : isPickA
                 ? 'glow-card bg-[#141824]'
-                : (matchup.isLocked || isFinal) && selectedRosterId
+                : (isLocked || isFinal) && selectedRosterId
                 ? 'bg-[#111317] border-[#1C1F26] opacity-40 hover:opacity-50'
                 : 'bg-[#111317] border-[#1C1F26] hover:border-[#2C3240] hover:bg-[#151820]'
-            } ${disabled || matchup.isLocked ? 'cursor-not-allowed' : ''}`}
+            } ${disabled || isLocked ? 'cursor-not-allowed' : ''}`}
           >
             {isPickA && (
               <div
@@ -217,17 +221,17 @@ export const MatchupCard: React.FC<MatchupCardProps> = ({
           {/* Team B */}
           <button
             type="button"
-            disabled={disabled || matchup.isLocked}
+            disabled={disabled || isLocked}
             onClick={() => onPickTeam(matchup.teamB.rosterId)}
             className={`group relative flex flex-col items-center justify-between p-3 rounded-xl border text-center transition-all duration-200 cursor-pointer ${
               isLostB
                 ? 'glow-lost bg-[#1A0E10]'
                 : isPickB
                 ? 'glow-card bg-[#141824]'
-                : (matchup.isLocked || isFinal) && selectedRosterId
+                : (isLocked || isFinal) && selectedRosterId
                 ? 'bg-[#111317] border-[#1C1F26] opacity-40 hover:opacity-50'
                 : 'bg-[#111317] border-[#1C1F26] hover:border-[#2C3240] hover:bg-[#151820]'
-            } ${disabled || matchup.isLocked ? 'cursor-not-allowed' : ''}`}
+            } ${disabled || isLocked ? 'cursor-not-allowed' : ''}`}
           >
             {isPickB && (
               <div

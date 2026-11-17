@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
+import { fetchWeekSchedule } from '../src/lib/schedule.js';
 
 // Auto-load .env.local and .env when running via tsx (Node.js doesn't auto-load Vite env files)
 function loadEnvFile(file: string) {
@@ -29,13 +30,6 @@ loadEnvFile('.env');
 const SLEEPER_LEAGUE_ID = '1390903684027670528';
 const BASE_API_URL = 'https://api.sleeper.app/v1';
 const LAUNCH_WEEK = 3;
-
-// Week 1 Thursday 8:15 PM ET = Sep 11 2026 00:15 UTC
-const WEEK1_THURSDAY_UTC = new Date('2026-09-11T00:15:00Z');
-
-function getThursdayKickoff(week: number): Date {
-  return new Date(WEEK1_THURSDAY_UTC.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
-}
 
 function padWeek(n: number): string {
   return String(n).padStart(2, '0');
@@ -126,13 +120,14 @@ async function runSync() {
     console.log(`⚔️   WEEK ${w} MATCHUPS`);
     console.log(`──────────────────────────────────────────`);
 
-    const [rawMatchups, stats] = await Promise.all([
+    const [rawMatchups, stats, weekSchedule] = await Promise.all([
       fetchJson<SleeperMatchup[]>(
         `${BASE_API_URL}/league/${SLEEPER_LEAGUE_ID}/matchups/${w}`
       ),
       fetchJson<Record<string, Record<string, unknown>>>(
         `${BASE_API_URL}/stats/nfl/regular/${state.season}/${w}`
       ).catch(() => ({})),
+      fetchWeekSchedule(w),
     ]);
 
     const countRemainingStarters = (m: SleeperMatchup): number => {
@@ -150,7 +145,7 @@ async function runSync() {
     };
 
     const grouped = new Map<number, SleeperMatchup[]>();
-    rawMatchups.forEach((m) => {
+    rawMatchups.forEach((m: SleeperMatchup) => {
       if (!grouped.has(m.matchup_id)) grouped.set(m.matchup_id, []);
       grouped.get(m.matchup_id)!.push(m);
     });
@@ -162,14 +157,14 @@ async function runSync() {
       return `${name} (${r?.settings.wins ?? 0}-${r?.settings.losses ?? 0})`;
     };
 
-    const kickoffAt = getThursdayKickoff(w);
+    const kickoffAt = new Date(weekSchedule.kickoffAt);
+    const tuesdayFinalAt = new Date(weekSchedule.weekFinalAt);
     const now = Date.now();
     const isAfterKickoff = now >= kickoffAt.getTime();
 
     // Finalization criteria:
     // 1) Sleeper has advanced to a subsequent week (w < state.week)
-    // 2) Or Tuesday 10:00 UTC (6 AM ET) after kickoff has arrived
-    const tuesdayFinalAt = new Date(kickoffAt.getTime() + 5 * 24 * 60 * 60 * 1000 + 10 * 60 * 60 * 1000);
+    // 2) Or Tuesday 6:00 AM America/New_York following the week's games has arrived
     const isWeekFinal = w < state.week || now >= tuesdayFinalAt.getTime();
 
     grouped.forEach((pair, mid) => {
@@ -200,7 +195,7 @@ async function runSync() {
     // Tiebreaker calculation
     let maxPts = 0;
     let maxRosterId: number | null = null;
-    rawMatchups.forEach((m) => {
+    rawMatchups.forEach((m: SleeperMatchup) => {
       Object.values(m.players_points ?? {}).forEach((val) => {
         if (typeof val === 'number' && val > maxPts) {
           maxPts = val;

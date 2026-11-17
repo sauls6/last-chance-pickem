@@ -1,4 +1,5 @@
 import type { FantasyTeamInfo, LeagueUser, WeeklyMatchup } from '../types';
+import { fetchWeekSchedule } from './schedule';
 
 export const SLEEPER_LEAGUE_ID = '1390903684027670528';
 export const BASE_API_URL = 'https://api.sleeper.app/v1';
@@ -94,25 +95,12 @@ export async function fetchLeagueUsers(): Promise<LeagueUser[]> {
   });
 }
 
-/**
- * Computes the upcoming Thursday's kickoff time (8:15 PM ET = 00:15 UTC next day).
- * If today IS Thursday after the lock time, returns this Thursday.
- * Otherwise returns the next upcoming Thursday.
- */
-function getThursdayKickoff(week: number): Date {
-  // Approximate: 2026 NFL Week 1 started Sep 10, 2026
-  // Each week advances 7 days. Week 1 Thursday = Sep 10 2026 @ 20:15 ET (00:15 UTC Sep 11)
-  const WEEK1_THURSDAY_UTC = new Date('2026-09-11T00:15:00Z');
-  const d = new Date(WEEK1_THURSDAY_UTC.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
-  return d;
-}
-
 export async function fetchWeeklyMatchups(
   week: number,
   currentNflWeek: number,
   season = '2026'
 ): Promise<WeeklyMatchup[]> {
-  const [rawMatchups, users, rosters, projectionsMap, statsMap] = await Promise.all([
+  const [rawMatchups, users, rosters, projectionsMap, statsMap, weekSchedule] = await Promise.all([
     fetchWithCache<RawSleeperMatchup[]>(`league/${SLEEPER_LEAGUE_ID}/matchups/${week}`),
     fetchWithCache<RawSleeperUser[]>(`league/${SLEEPER_LEAGUE_ID}/users`),
     fetchWithCache<RawSleeperRoster[]>(`league/${SLEEPER_LEAGUE_ID}/rosters`),
@@ -122,6 +110,7 @@ export async function fetchWeeklyMatchups(
     fetchWithCache<Record<string, Record<string, unknown>>>(
       `stats/nfl/regular/${season}/${week}`
     ).catch(() => null),
+    fetchWeekSchedule(week),
   ]);
 
   const userMap = new Map<string, RawSleeperUser>();
@@ -230,7 +219,7 @@ export async function fetchWeeklyMatchups(
     grouped.get(m.matchup_id)!.push(m);
   });
 
-  const kickoffAt = getThursdayKickoff(week);
+  const kickoffAt = new Date(weekSchedule.kickoffAt);
   const now = Date.now();
   const isAfterKickoff = now >= kickoffAt.getTime();
 

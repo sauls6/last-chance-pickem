@@ -3,6 +3,7 @@ import type { LeagueUser, WeeklyMatchup } from '../types';
 import { MatchupCard } from './MatchupCard';
 import { WeekRail } from './WeekRail';
 import { getGameSplits, getPicksForWeek, getTiebreaker, savePicksForWeek, saveTiebreaker } from '../lib/store';
+import { formatKickoffLabel } from '../lib/schedule';
 import { Clock, ShieldAlert, Sparkles, CheckCircle2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { LAUNCH_WEEK } from '../lib/rivalries';
@@ -32,6 +33,30 @@ export const PicksView: React.FC<PicksViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastIsError, setToastIsError] = useState(false);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  const weekKickoffAt = matchups[0]?.kickoffAt;
+
+  // Live-update lock state right at kickoff without requiring a page reload
+  useEffect(() => {
+    setNowMs(Date.now());
+    if (!weekKickoffAt) return;
+
+    const kickoffMs = new Date(weekKickoffAt).getTime();
+    if (Number.isNaN(kickoffMs)) return;
+
+    const remainingMs = kickoffMs - Date.now();
+    let kickoffTimer: ReturnType<typeof setTimeout> | undefined;
+    if (remainingMs > 0 && remainingMs <= 2147483647) {
+      kickoffTimer = setTimeout(() => setNowMs(Date.now()), remainingMs + 250);
+    }
+
+    const interval = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => {
+      if (kickoffTimer) clearTimeout(kickoffTimer);
+      clearInterval(interval);
+    };
+  }, [weekKickoffAt]);
 
   // Stable game IDs string to use as dep (avoids array ref instability)
   const matchupIds = matchups.map((m) => m.id).join(',');
@@ -74,9 +99,23 @@ export const PicksView: React.FC<PicksViewProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const totalMatchups = matchups.length;
+  const pickedCount = matchups.filter((m) => picks[m.id] !== undefined).length;
+  const isWeekOpen = selectedWeek === currentNflWeek;
+  const isAfterKickoff = weekKickoffAt ? nowMs >= new Date(weekKickoffAt).getTime() : false;
+  // The current week is locked once the authoritative kickoff timestamp has passed
+  const isCurrentWeekLocked =
+    selectedWeek < currentNflWeek ||
+    (matchups.length > 0 && (matchups[0].isLocked || isAfterKickoff));
+
   const handlePick = (gameId: string, rosterId: number) => {
     if (!currentUser) {
       onOpenAuth();
+      return;
+    }
+    if (isCurrentWeekLocked || !isWeekOpen || (weekKickoffAt && Date.now() >= new Date(weekKickoffAt).getTime())) {
+      setNowMs(Date.now());
+      showToast('Picks are locked — kickoff has passed', true);
       return;
     }
     setPicks((prev) => ({ ...prev, [gameId]: rosterId }));
@@ -85,6 +124,11 @@ export const PicksView: React.FC<PicksViewProps> = ({
   const handleSave = async () => {
     if (!currentUser) {
       onOpenAuth();
+      return;
+    }
+    if (isCurrentWeekLocked || !isWeekOpen || (weekKickoffAt && Date.now() >= new Date(weekKickoffAt).getTime())) {
+      setNowMs(Date.now());
+      showToast('Picks are locked — kickoff has passed', true);
       return;
     }
 
@@ -114,12 +158,6 @@ export const PicksView: React.FC<PicksViewProps> = ({
     }
   };
 
-  const totalMatchups = matchups.length;
-  const pickedCount = matchups.filter((m) => picks[m.id] !== undefined).length;
-  const isWeekOpen = selectedWeek === currentNflWeek;
-  // The current week is locked once Thursday kickoff has passed (matchups[0].isLocked reflects this)
-  const isCurrentWeekLocked = matchups.length > 0 && matchups[0].isLocked;
-
   return (
     <div className="w-full max-w-xl mx-auto px-4 pt-4 pb-32">
       {/* Week Title */}
@@ -140,9 +178,13 @@ export const PicksView: React.FC<PicksViewProps> = ({
             {selectedWeek < currentNflWeek
               ? 'This week is final'
               : isCurrentWeekLocked
-              ? '🔒 Picks are locked — Thursday has kicked off'
+              ? `🔒 Picks locked${weekKickoffAt ? ` · ${formatKickoffLabel(weekKickoffAt)}` : ''}`
               : isWeekOpen
-              ? 'Picks lock Thursday at 8:15 PM ET'
+              ? weekKickoffAt
+                ? `Picks lock ${formatKickoffLabel(weekKickoffAt)}`
+                : 'Loading kickoff schedule…'
+              : weekKickoffAt
+              ? `Upcoming slate · Locks ${formatKickoffLabel(weekKickoffAt)}`
               : 'Upcoming slate — not yet open'}
           </span>
         </div>
@@ -229,6 +271,7 @@ export const PicksView: React.FC<PicksViewProps> = ({
                   disabled={isCurrentWeekLocked || !isWeekOpen}
                   currentUserRosterId={currentUser?.rosterId}
                   isCurrentWeek={isWeekOpen}
+                  isLocked={selectedWeek < currentNflWeek || (isWeekOpen && isCurrentWeekLocked)}
                 />
               );
             })
